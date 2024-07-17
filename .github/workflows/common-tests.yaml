@@ -54,6 +54,7 @@ jobs:
       - name: Check DAGs for cycles
         run: |
           export AIRFLOW_HOME=$(mktemp -d)
+          airflow db init
           for dag in $(find dags -name "*.py" -exec basename {} .py \;); do
             airflow dags test $dag 2024-01-01
           done
