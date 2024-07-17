@@ -43,7 +43,13 @@ jobs:
       - name: Test DAG integrity
         run: |
           pip install pytest
-          pytest tests/
+          test_files=$(ls tests/test_*.py 2> /dev/null || true)
+          test_files+=$(ls tests/*_test.py 2> /dev/null || true)
+          if [ -n "$test_files" ]; then
+            pytest -v tests/
+          else
+            echo "No test files found, skipping pytest."
+          fi
 
       - name: Check DAGs for cycles
         run: |
