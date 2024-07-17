@@ -24,6 +24,9 @@ def print_hello():
 
 
 def print_goodbye():
+    """
+    Prints goodbye and returns the string "goodbye!"
+    """
     print("goodbye!")
     return "goodbye!"
 
