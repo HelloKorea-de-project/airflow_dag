@@ -1,6 +1,10 @@
+"""
+This module contains an example DAG for demonstrating basic functionality.
+"""
+
+from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from datetime import datetime
 
 
 dag = DAG(
@@ -12,6 +16,9 @@ dag = DAG(
 
 
 def print_hello():
+    """
+    Prints hello and returns the string "hello!"
+    """
     print("hello!")
     return "hello!"
 
