@@ -54,10 +54,14 @@ jobs:
       - name: Check DAGs for cycles
         run: |
           export AIRFLOW_HOME=$(mktemp -d)
+          mkdir -p $AIRFLOW_HOME/dags
+          cp -r dags/* $AIRFLOW_HOME/dags/
           airflow db init
-          for dag in $(find dags -name "*.py" -exec basename {} .py \;); do
+          for dag in $(find $AIRFLOW_HOME/dags -name "*.py" -exec basename {} .py \;); do
             airflow dags test $dag 2024-01-01
           done
+        env:
+          AIRFLOW_HOME: ${{ env.AIRFLOW_HOME }}
 
   sync_dags:
     runs-on: ubuntu-latest
