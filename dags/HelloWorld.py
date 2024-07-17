@@ -23,7 +23,7 @@ def print_goodbye():
 
 print_hello = PythonOperator(
     task_id='print_hello',
-    # python_callable param points to the function you want to run 
+    # python_callable param points to the function you want to run
     python_callable=print_hello,
     # dag param points to the DAG that this task is a part of
     dag=dag)
