@@ -183,7 +183,7 @@ def load_to_s3_raw(**kwargs):
     fest_detail_s3_key = f'source/kopis/festival_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/festival_detail_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
 
     # Upload to S3
-    s3 = S3Hook(aws_conn_id='aws_s3')
+    s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, fest_list_s3_key, fest_list_csv_string, bucket)
     upload_to_s3(s3, fest_detail_s3_key, fest_detail_csv_string, bucket)
 

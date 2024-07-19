@@ -106,7 +106,7 @@ def load_to_s3_raw(**kwargs):
     s3_key = f'source/kopis/facilities/{kst_date.year}/{kst_date.month}/{kst_date.day}/facilities_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
 
     # Upload to S3
-    s3 = S3Hook(aws_conn_id='aws_s3')
+    s3 = S3Hook(aws_conn_id='s3_conn')
     s3.load_string(
         string_data=csv_string,
         key=s3_key,

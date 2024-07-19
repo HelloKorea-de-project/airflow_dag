@@ -55,9 +55,9 @@ def fetch_all_performances(api_url, params=None):
 def fetch_all_performance_details(api_url, perf_ids, params=None):
     all_data = []
 
-    for perf_id in perf_ids:
+    for idx, perf_id in enumerate(perf_ids, start=1):
         detail_api_url = api_url + f'/{perf_id}'
-        logging.info(f'Fetching page {perf_id}')
+        logging.info(f'Fetching {idx}th item {perf_id}')
         page_data = fetch_page(detail_api_url, params)
 
         if not page_data or '<db>' not in page_data:
@@ -183,7 +183,7 @@ def load_to_s3_raw(**kwargs):
     perf_detail_s3_key = f'source/kopis/performance_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/performance_detail_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
 
     # Upload to S3
-    s3 = S3Hook(aws_conn_id='aws_s3')
+    s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, perf_list_s3_key, perf_list_csv_string, bucket)
     upload_to_s3(s3, perf_detail_s3_key, perf_detail_csv_string, bucket)
 
