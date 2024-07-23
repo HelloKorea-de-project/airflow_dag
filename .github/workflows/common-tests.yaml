@@ -89,4 +89,4 @@ jobs:
           # aws s3 sync dags/ s3://$S3_BUCKET/dags/
           # aws s3 sync plugins/ s3://$S3_BUCKET/plugins/
           # aws s3 sync tests/ s3://$S3_BUCKET/tests/
-          aws s3 sync / s3://$S3_BUCKET/
+          aws s3 sync ./ s3://$S3_BUCKET/
