@@ -59,8 +59,7 @@ def transform(**kwargs):
     # drop original createdtime, modifiedtime cols
     createdtime_dropped = drop_column(col_dropped_df, 'createdtime')
     modifiedtime_dropped = drop_column(createdtime_dropped, 'modifiedtime')
-    logging.info(f'########DF##########: {modifiedtime_dropped}')
-    logging.info(f"########JSON########: {modifiedtime_dropped.to_json(date_format='iso', date_unit='s')}")
+
     return modifiedtime_dropped.to_json(date_format='iso', date_unit='s')
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
