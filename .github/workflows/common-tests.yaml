@@ -86,7 +86,8 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           S3_BUCKET: ${{ secrets.S3_BUCKET }}
         run: |
-          # aws s3 sync dags/ s3://$S3_BUCKET/dags/
-          # aws s3 sync plugins/ s3://$S3_BUCKET/plugins/
-          # aws s3 sync tests/ s3://$S3_BUCKET/tests/
-          aws s3 sync ./ s3://$S3_BUCKET/ --exclude "init" --exclude "home/*" --exclude ".git/*" --exclude ".github/*" --exclude ".pylintrc" --exclude "bin/*" --exclude "*.md" --exclude "*.txt"
+          aws s3 sync dags/ s3://$S3_BUCKET/dags/
+          aws s3 sync plugins/ s3://$S3_BUCKET/plugins/
+          aws s3 sync tests/ s3://$S3_BUCKET/tests/
+          aws s3 sync airflow.cfg s3://$S3_BUCKET/
+          # aws s3 sync ./ s3://$S3_BUCKET/ --exclude "init" --exclude "home/*" --exclude ".git/*" --exclude ".github/*" --exclude ".pylintrc" --exclude "bin/*" --exclude "*.md" --exclude "*.txt"
