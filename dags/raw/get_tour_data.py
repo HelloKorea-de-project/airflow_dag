@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from airflow.utils.dates import days_ago
@@ -85,7 +86,8 @@ def load_to_s3_raw(**kwargs):
     kst_date = convert_to_kst(execution_date)
     logging.info(f'excution date: {execution_date}')
     logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
+    s3_key = f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%d")}.csv'
+    logging.info(f's3_key will be loaded: {s3_key}')
 
     # Upload to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
@@ -120,7 +122,7 @@ default_args = {
 
 # Define the DAG
 dag = DAG(
-    'update_tour_attractions_data',
+    'update_to_raw_tour_attractions_data',
     default_args=default_args,
     description='A DAG to update tour attractions data every day and save it to S3',
     schedule_interval='@daily',
@@ -140,4 +142,11 @@ load_to_s3_raw = PythonOperator(
     dag=dag,
 )
 
-extract_tour_attractions_data >> load_to_s3_raw
+trigger_stage_tour_dag = TriggerDagRunOperator(
+    task_id='trigger_stage_tour_dag',
+    trigger_dag_id='stage_tour_attractions_data',
+    execution_date='{{ ds }}',
+    reset_dag_run=True,
+    dag=dag,
+)
+extract_tour_attractions_data >> load_to_s3_raw >> trigger_stage_tour_dag
