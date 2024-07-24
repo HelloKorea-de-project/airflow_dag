@@ -165,7 +165,7 @@ def load_to_s3_raw(**kwargs):
     execution_date = kwargs['execution_date']
     kst_date = convert_to_kst(execution_date)
     facility_list_s3_key = f'source/kopis/facilities/{kst_date.year}/{kst_date.month}/{kst_date.day}/facilities_{kst_date.strftime("%Y%m%d")}.csv'
-    facility_detail_s3_key = f'source/kopis/facility_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/facility_detail{kst_date.strftime("%Y%m%d")}.csv'
+    facility_detail_s3_key = f'source/kopis/facility_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/facility_detail_{kst_date.strftime("%Y%m%d")}.csv'
 
     # Upload to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
