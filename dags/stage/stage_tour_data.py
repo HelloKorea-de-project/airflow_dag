@@ -53,26 +53,26 @@ def transform(**kwargs):
     unique_df = drop_duplicates(df, 'contentid')
     # drop 'areacode' column
     col_dropped_df = drop_column(unique_df, 'areacode')
-    # convert time string to datetime format
-    convert_time_format(col_dropped_df, 'createdtime', 'createdAt')
-    convert_time_format(col_dropped_df, 'modifiedtime', 'updatedAt')
 
-    # drop original createdtime, modifiedtime cols
-    createdtime_dropped = drop_column(col_dropped_df, 'createdtime')
-    modifiedtime_dropped = drop_column(createdtime_dropped, 'modifiedtime')
-
-    return modifiedtime_dropped.to_json(date_format='iso', date_unit='s')
+    return col_dropped_df.to_json()
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
     bucket = 'hellokorea-stage-layer'
 
     # # Pull merged DataFrame from XCom
-    tour_data_json = ti.xcom_pull(task_ids='transform')
-    df_tour = pd.read_json(tour_data_json)
-    logging.info(df_tour)
+    tour_json = ti.xcom_pull(task_ids='transform')
+    df_tour = pd.read_json(tour_json)
+
+    # convert time string to datetime format
+    convert_time_format(df_tour, 'createdtime', 'createdAt')
+    convert_time_format(df_tour, 'modifiedtime', 'updatedAt')
+
+    # drop original createdtime, modifiedtime cols
+    createdtime_dropped = drop_column(df_tour, 'createdtime')
+    modifiedtime_dropped = drop_column(createdtime_dropped, 'modifiedtime')
 
     # Convert DataFrame to parquet bytes
-    pq_bytes = convert_to_parquet_bytes(df_tour)
+    pq_bytes = convert_to_parquet_bytes(modifiedtime_dropped)
 
     # Define S3 path
     execution_date = kwargs['execution_date']
@@ -116,7 +116,8 @@ def convert_to_kst(execution_date):
 
 def convert_to_parquet_bytes(df):
     pq_buffer = io.BytesIO()
-    df.to_parquet(pq_buffer, index=False)
+    df.to_parquet(pq_buffer, engine='pyarrow', use_deprecated_int96_timestamps=True, index=False)
+    logging.info(pq.read_schema(pq_buffer))
     return pq_buffer.getvalue()
 
 
