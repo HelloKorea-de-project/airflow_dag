@@ -12,6 +12,7 @@ import io
 import requests
 import logging
 import pandas as pd
+import pyarrow.parquet as pq
 import json
 
 # 로깅 설정
@@ -70,19 +71,20 @@ def load_to_s3_stage(**kwargs):
     df_tour = pd.read_json(tour_data_json)
     logging.info(df_tour)
 
-    # Convert DataFrame to CSV string
-    csv_string = convert_to_csv_string(df_tour)
+    # Convert DataFrame to parquet bytes
+    pq_bytes = convert_to_parquet_bytes(df_tour)
 
     # Define S3 path
     execution_date = kwargs['execution_date']
     kst_date = convert_to_kst(execution_date)
     logging.info(f'excution date: {execution_date}')
     logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%d")}.csv'
+    s3_key = f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%d")}.parquet'
     logging.info(f's3_key will be loaded: {s3_key}')
-    # Upload to S3
+
+    # Upload parquet file to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
-    upload_to_s3(s3, s3_key, csv_string, bucket)
+    upload_to_s3(s3, s3_key, pq_bytes, bucket)
 
 
 def drop_duplicates(df, criteria_col):
@@ -112,15 +114,15 @@ def convert_to_kst(execution_date):
     return execution_date.astimezone(kst)
 
 
-def convert_to_csv_string(df):
-    csv_buffer = io.StringIO()
-    df.to_csv(csv_buffer, index=False)
-    return csv_buffer.getvalue()
+def convert_to_parquet_bytes(df):
+    pq_buffer = io.BytesIO()
+    df.to_parquet(pq_buffer, index=False)
+    return pq_buffer.getvalue()
 
 
-def upload_to_s3(s3, s3_key,csv_string, bucket):
-    s3.load_string(
-        string_data=csv_string,
+def upload_to_s3(s3, s3_key, pq_bytes, bucket):
+    s3.load_bytes(
+        bytes_data=pq_bytes,
         key=s3_key,
         bucket_name=bucket
     )
