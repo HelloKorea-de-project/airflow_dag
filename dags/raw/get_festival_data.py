@@ -23,6 +23,7 @@ def fetch_page(api_url, params=None, headers=None):
     try:
         response = requests.get(api_url, params=params, headers=headers)
         response.raise_for_status()
+        logging.info(response.text)
         return response.text
     except requests.exceptions.HTTPError as http_err:
         logging.error(f'HTTP error occurred: {http_err}')
@@ -124,7 +125,7 @@ def parse_xml_festival_details(xml_data):
 
 def extract_festival_data(**kwargs):
     api_url = 'http://kopis.or.kr/openApi/restful/prffest'
-    api_key = Variable.get('kopis_api_key_festival')
+    api_key = Variable.get('kopis_api_key_facility')
     api_key_decode = requests.utils.unquote(api_key)
     seoul_area_code = 11
 
@@ -147,7 +148,7 @@ def extract_festival_data(**kwargs):
 
 def extract_festival_detail_data(**kwargs):
     api_url = 'https://www.kopis.or.kr/openApi/restful/pblprfr'
-    api_key = Variable.get('kopis_api_key_festival')
+    api_key = Variable.get('kopis_api_key_facility')
     api_key_decode = requests.utils.unquote(api_key)
     params = {
         'service': api_key_decode
@@ -179,8 +180,8 @@ def load_to_s3_raw(**kwargs):
     # Define S3 path
     execution_date = kwargs['execution_date']
     kst_date = convert_to_kst(execution_date)
-    fest_list_s3_key = f'source/kopis/festival/{kst_date.year}/{kst_date.month}/{kst_date.day}/festival_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
-    fest_detail_s3_key = f'source/kopis/festival_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/festival_detail_{kst_date.strftime("%Y%m%dT%H%M%S")}.csv'
+    fest_list_s3_key = f'source/kopis/festival/{kst_date.year}/{kst_date.month}/{kst_date.day}/festival_{kst_date.strftime("%Y%m%d")}.csv'
+    fest_detail_s3_key = f'source/kopis/festival_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/festival_detail_{kst_date.strftime("%Y%m%d")}.csv'
 
     # Upload to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
