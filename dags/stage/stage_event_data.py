@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from airflow.utils.dates import days_ago
 
@@ -104,27 +105,74 @@ def transform(**kwargs):
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
     bucket = 'hellokorea-stage-layer'
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
 
     # # Pull merged DataFrame from XCom
     event_json = ti.xcom_pull(task_ids='transform')
     event_df = pd.read_json(event_json)
     logging.info(event_df)
 
+    # add created and updated at timestamp columns
+    createdAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    updateAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    event_df['createdAt'] = createdAt
+    event_df['updatedAt'] = updateAt
+    logging.info(event_df)
+    logging.info(event_df.columns, event_df.dtypes)
+
     # Convert DataFrame to parquet bytes
     pq_bytes = convert_to_parquet_bytes(event_df)
 
     # Define S3 path
-    execution_date = kwargs['execution_date']
-    kst_date = convert_to_kst(execution_date)
-    logging.info(f'excution date: {execution_date}')
-    logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/kopis/event/{kst_date.year}/{kst_date.month}/{kst_date.day}/event_{kst_date.strftime("%Y%m%d")}.parquet'
+    s3_key = get_s3_key(execution_date)
     logging.info(f's3_key will be loaded: {s3_key}')
 
     # Upload parquet file to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, s3_key, pq_bytes, bucket)
 
+def copy_to_redshift(**kwargs):
+    cur = get_Redshift_connection(autocommit=False)
+    # drop and create table
+    flush_table_sql = """DROP TABLE IF EXISTS raw_data.event;
+        CREATE TABLE raw_data.event (
+        mt20id varchar(256),
+        festival varchar(1),
+        createdAt timestamp default GETDATE(),
+        updatedAt timestamp default GETDATE()
+    );
+    """
+    logging.info(flush_table_sql)
+    try:
+        cur.execute(flush_table_sql)
+        cur.execute('COMMIT;')
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
+
+    # define s3 url
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+    execution_date = kwargs['execution_date']
+    s3_key = get_s3_key(execution_date)
+
+    # copy parquet file to redshift raw_data schema
+    copy_sql = f"""
+        COPY raw_data.event
+        FROM 's3://hellokorea-stage-layer/{s3_key}'
+        IAM_ROLE 'arn:aws:iam::862327261051:role/hellokorea_redshift_s3_access_role'
+        FORMAT AS PARQUET;
+    """
+    logging.info(copy_sql)
+    try:
+        cur.execute(copy_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
 
 def drop_duplicates(df, criteria_col):
     logging.info(f'total data length before dropping : {len(df)}')
@@ -151,12 +199,26 @@ def convert_to_parquet_bytes(df):
     return pq_buffer.getvalue()
 
 
+def get_s3_key(execution_date):
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+
+    return f'source/kopis/event/{kst_date.year}/{kst_date.month}/{kst_date.day}/event_{kst_date.strftime("%Y%m%d")}.parquet'
+
+
 def upload_to_s3(s3, s3_key, pq_bytes, bucket):
     s3.load_bytes(
         bytes_data=pq_bytes,
         key=s3_key,
         bucket_name=bucket
     )
+
+def get_Redshift_connection(autocommit=True):
+    hook = PostgresHook(postgres_conn_id='redshift_conn')
+    conn = hook.get_conn()
+    conn.autocommit = autocommit
+    return conn.cursor()
 
 
 # Define default_args
@@ -206,4 +268,10 @@ load_to_s3_stage = PythonOperator(
     dag=dag,
 )
 
-get_performance_from_raw >> get_festival_from_raw >> merge_tables >> transform >> load_to_s3_stage
+copy_to_redshift = PythonOperator(
+    task_id='copy_to_redshift',
+    python_callable=copy_to_redshift,
+    dag=dag,
+)
+
+get_performance_from_raw >> get_festival_from_raw >> merge_tables >> transform >> load_to_s3_stage >> copy_to_redshift
