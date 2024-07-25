@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from airflow.utils.dates import days_ago
@@ -76,15 +77,69 @@ def load_to_s3_stage(**kwargs):
 
     # Define S3 path
     execution_date = kwargs['execution_date']
-    kst_date = convert_to_kst(execution_date)
-    logging.info(f'excution date: {execution_date}')
-    logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%d")}.parquet'
+    s3_key = get_s3_key(execution_date)
     logging.info(f's3_key will be loaded: {s3_key}')
 
     # Upload parquet file to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, s3_key, pq_bytes, bucket)
+
+
+def copy_to_redshift(**kwargs):
+    cur = get_Redshift_connection(autocommit=False)
+    # drop and create table
+    flush_table_sql = """DROP TABLE IF EXISTS raw_data.seoultourinfo;
+        CREATE TABLE raw_data.seoultourinfo (
+            addr1 varchar(256),
+            addr2 varchar(256),
+            cat1  varchar(32),
+            cat2  varchar(32),
+            cat3  varchar(32),
+            contentid bigint primary key,
+            contenttypeid bigint,
+            firstimage varchar(256),
+            firstimage2 varchar(256),
+            cpyrhtDivcd varchar(32),
+            mapx double precision,
+            mapy double precision,
+            mlevel double precision, 
+            sigungucode double precision,
+            tel varchar(256),
+            title varchar(256),
+            zipcode varchar(32),
+            createdAt timestamp,
+            updatedAt timestamp
+        );
+        """
+    logging.info(flush_table_sql)
+    try:
+        cur.execute(flush_table_sql)
+        cur.execute('COMMIT;')
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
+
+    # define s3 url
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+    execution_date = kwargs['execution_date']
+    s3_key = get_s3_key(execution_date)
+
+    # copy parquet file to redshift raw_data schema
+    copy_sql = f"""
+        COPY raw_data.seoultourinfo
+        FROM 's3://hellokorea-stage-layer/{s3_key}'
+        IAM_ROLE 'arn:aws:iam::862327261051:role/hellokorea_redshift_s3_access_role'
+        FORMAT AS PARQUET;
+    """
+    try:
+        cur.execute(copy_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
 
 
 def drop_duplicates(df, criteria_col):
@@ -120,6 +175,13 @@ def convert_to_parquet_bytes(df):
     logging.info(pq.read_schema(pq_buffer))
     return pq_buffer.getvalue()
 
+def get_s3_key(execution_date):
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+
+    return f'source/tour/attractions/{kst_date.year}/{kst_date.month}/{kst_date.day}/tour_attractions_{kst_date.strftime("%Y%m%d")}.parquet'
+
 
 def upload_to_s3(s3, s3_key, pq_bytes, bucket):
     s3.load_bytes(
@@ -127,6 +189,13 @@ def upload_to_s3(s3, s3_key, pq_bytes, bucket):
         key=s3_key,
         bucket_name=bucket
     )
+
+
+def get_Redshift_connection(autocommit=True):
+    hook = PostgresHook(postgres_conn_id='redshift_conn')
+    conn = hook.get_conn()
+    conn.autocommit = autocommit
+    return conn.cursor()
 
 
 # Define default_args
@@ -164,4 +233,10 @@ load_to_s3_stage = PythonOperator(
     dag=dag,
 )
 
-get_tour_data_from_raw >> transform >> load_to_s3_stage
+copy_to_redshift = PythonOperator(
+    task_id='copy_to_redshift',
+    python_callable=copy_to_redshift,
+    dag=dag,
+)
+
+get_tour_data_from_raw >> transform >> load_to_s3_stage >> copy_to_redshift
