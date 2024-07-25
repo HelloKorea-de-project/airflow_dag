@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from airflow.utils.dates import days_ago
 
@@ -10,6 +11,7 @@ import io
 
 import logging
 import pandas as pd
+import pyarrow.parquet as pq
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -89,50 +91,111 @@ def transform(**kwargs):
 
     # drop duplicate records using mt20id column
     unique_df = drop_duplicates(event_df, 'mt20id')
-
     # drop duplicated columns
     col_dropped_df = drop_column(unique_df, ['index'])
-
-    # convert time value
-    convert_time_format(col_dropped_df, 'prfpdfrom', 'eventstart')
-    convert_time_format(col_dropped_df, 'prfpdto', 'eventend')
-
-    # drop original time column
-    prfpdfrom_dropped = drop_column(col_dropped_df, 'prfpdfrom')
-    prfpdto_dropped = drop_column(prfpdfrom_dropped, 'prfpdto')
-
     # convert seat price to dict string
-    convert_seatprice(prfpdto_dropped, 'seatprices')
-
+    convert_seatprice(col_dropped_df, 'seatprices')
     # drop original seatprice column
-    result_df = drop_column(prfpdto_dropped, 'pcseguidance')
+    result_df = drop_column(col_dropped_df, 'pcseguidance')
 
-    return result_df.to_json(date_format='iso', date_unit='s')
+    return result_df.to_json()
 
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
     bucket = 'hellokorea-stage-layer'
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
 
     # # Pull merged DataFrame from XCom
     event_json = ti.xcom_pull(task_ids='transform')
     event_df = pd.read_json(event_json)
     logging.info(event_df)
 
+
+    # convert time value
+    convert_time_format(event_df, 'prfpdfrom', 'eventstart')
+    convert_time_format(event_df, 'prfpdto', 'eventend')
+
+    # drop original time column
+    prfpdfrom_dropped = drop_column(event_df, 'prfpdfrom')
+    prfpdto_dropped = drop_column(prfpdfrom_dropped, 'prfpdto')
+
+    # add created and updated at timestamp columns
+    createdAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    updateAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    prfpdto_dropped['createdAt'] = createdAt
+    prfpdto_dropped['updatedAt'] = updateAt
+    logging.info(prfpdto_dropped)
+    logging.info(prfpdto_dropped.columns, prfpdto_dropped.dtypes)
+
     # Convert DataFrame to parquet bytes
-    pq_bytes = convert_to_parquet_bytes(event_df)
+    pq_bytes = convert_to_parquet_bytes(prfpdto_dropped)
 
     # Define S3 path
-    execution_date = kwargs['execution_date']
-    kst_date = convert_to_kst(execution_date)
-    logging.info(f'excution date: {execution_date}')
-    logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/kopis/event_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/event_detail_{kst_date.strftime("%Y%m%d")}.parquet'
-    logging.info(f's3_key will be loaded: {s3_key}')
+    s3_key = get_s3_key(execution_date)
 
     # Upload parquet file to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, s3_key, pq_bytes, bucket)
 
+
+def copy_to_redshift(**kwargs):
+    cur = get_Redshift_connection(autocommit=False)
+    # drop and create table
+    flush_table_sql = """DROP TABLE IF EXISTS raw_data.event_detail;
+    CREATE TABLE raw_data.event_detail (
+        mt20id varchar(256) primary key,
+        prfnm varchar(256),
+        fcltynm varchar(256),
+        prfcast varchar(256),
+        prfcrew varchar(256),
+        prfruntime varchar(32),
+        prfage varchar(32),
+        entrpsnm varchar(256),
+        poster varchar(256),
+        sty varchar(65535),
+        genrenm varchar(32),
+        openrun varchar(1),
+        prfstate varchar(32),
+        mt10id varchar(256),
+        dtguidance varchar(2048),
+        seatprice varchar(256),
+        eventstart varchar(32),
+        eventend varchar(32),
+        createdAt timestamp,
+        updatedAt timestamp
+    );
+    """
+    logging.info(flush_table_sql)
+    try:
+        cur.execute(flush_table_sql)
+        cur.execute('COMMIT;')
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
+
+    # define s3 url
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+    execution_date = kwargs['execution_date']
+    s3_key = get_s3_key(execution_date)
+
+    # copy parquet file to redshift raw_data schema
+    copy_sql = f"""
+        COPY raw_data.event_detail
+        FROM 's3://hellokorea-stage-layer/{s3_key}'
+        IAM_ROLE 'arn:aws:iam::862327261051:role/hellokorea_redshift_s3_access_role'
+        FORMAT AS PARQUET;
+    """
+    logging.info(copy_sql)
+    try:
+        cur.execute(copy_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
 
 def drop_duplicates(df, criteria_col):
     logging.info(f'total data length before dropping : {len(df)}')
@@ -149,7 +212,11 @@ def drop_column(df, target_col):
 
 
 def convert_time_format(df, target_col, new_col):
-    time_converted = df[target_col].apply(lambda date_str: datetime.strptime(str(date_str), '%Y.%m.%d'))
+    time_converted = df[target_col].apply(
+        lambda date_str:
+            datetime.strptime(str(date_str), '%Y.%m.%d')
+                .strftime('%Y-%m-%d'),
+    )
     logging.info(f'Time converted series: {time_converted}')
     df[new_col] = time_converted
     logging.info(f'After {target_col} col converted: {df.columns}')
@@ -178,7 +245,16 @@ def convert_to_kst(execution_date):
 def convert_to_parquet_bytes(df):
     pq_buffer = io.BytesIO()
     df.to_parquet(pq_buffer, index=False)
+    logging.info(pq.read_schema(pq_buffer))
     return pq_buffer.getvalue()
+
+
+def get_s3_key(execution_date):
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+
+    return f'source/kopis/event_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/event_detail_{kst_date.strftime("%Y%m%d")}.parquet'
 
 
 def upload_to_s3(s3, s3_key, pq_bytes, bucket):
@@ -187,6 +263,13 @@ def upload_to_s3(s3, s3_key, pq_bytes, bucket):
         key=s3_key,
         bucket_name=bucket
     )
+
+
+def get_Redshift_connection(autocommit=True):
+    hook = PostgresHook(postgres_conn_id='redshift_conn')
+    conn = hook.get_conn()
+    conn.autocommit = autocommit
+    return conn.cursor()
 
 
 # Define default_args
@@ -236,4 +319,10 @@ load_to_s3_stage = PythonOperator(
     dag=dag,
 )
 
-get_performance_detail_from_raw >> get_festival_detail_from_raw >> merge_tables >> transform >> load_to_s3_stage
+copy_to_redshift = PythonOperator(
+    task_id='copy_to_redshift',
+    python_callable=copy_to_redshift,
+    dag=dag,
+)
+
+get_performance_detail_from_raw >> get_festival_detail_from_raw >> merge_tables >> transform >> load_to_s3_stage >> copy_to_redshift
