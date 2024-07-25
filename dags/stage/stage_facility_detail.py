@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from airflow.utils.dates import days_ago
 
@@ -55,26 +56,92 @@ def transform(**kwargs):
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
     bucket = 'hellokorea-stage-layer'
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
 
     # # Pull merged DataFrame from XCom
     facilities_json = ti.xcom_pull(task_ids='transform')
     facilities_df = pd.read_json(facilities_json)
     logging.info(facilities_df)
 
+    # add created and updated at timestamp columns
+    createdAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    updateAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
+    facilities_df['createdAt'] = createdAt
+    facilities_df['updatedAt'] = updateAt
+    logging.info(facilities_df)
+    logging.info(facilities_df.columns, facilities_df.dtypes)
+
     # Convert DataFrame to parquet bytes
     pq_bytes = convert_to_parquet_bytes(facilities_df)
 
     # Define S3 path
-    execution_date = kwargs['execution_date']
-    kst_date = convert_to_kst(execution_date)
-    logging.info(f'excution date: {execution_date}')
-    logging.info(f'kst_date: {kst_date}')
-    s3_key = f'source/kopis/facility_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/facility_detail_{kst_date.strftime("%Y%m%d")}.parquet'
+    s3_key = get_s3_key(execution_date)
     logging.info(f's3_key will be loaded: {s3_key}')
 
     # Upload parquet file to S3
     s3 = S3Hook(aws_conn_id='s3_conn')
     upload_to_s3(s3, s3_key, pq_bytes, bucket)
+
+
+def copy_to_redshift(**kwargs):
+    cur = get_Redshift_connection(autocommit=False)
+    # drop and create table
+    flush_table_sql = """DROP TABLE IF EXISTS raw_data.performance_facility_detail;
+    CREATE TABLE raw_data.performance_facility_detail (
+        fcltynm varchar(256),
+        mt10id varchar(256) primary key,
+        mt13cnt bigint,
+        fcltychartr varchar(256),
+        opende varchar(32),
+        seatscale bigint,
+        telno varchar(256),
+        relateurl varchar(2048),
+        adres varchar(2048),
+        la double precision,
+        lo double precision,
+        createdAt timestamp default GETDATE(),
+        updatedAt timestamp default GETDATE()
+    );
+    """
+    logging.info(flush_table_sql)
+    try:
+        cur.execute(flush_table_sql)
+        cur.execute('COMMIT;')
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
+
+    # define s3 url
+    execution_date = kwargs['execution_date']
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+    execution_date = kwargs['execution_date']
+    s3_key = get_s3_key(execution_date)
+
+    # copy parquet file to redshift raw_data schema
+    copy_sql = f"""
+        COPY raw_data.performance_facility_detail
+        FROM 's3://hellokorea-stage-layer/{s3_key}'
+        IAM_ROLE 'arn:aws:iam::862327261051:role/hellokorea_redshift_s3_access_role'
+        FORMAT AS PARQUET;
+    """
+    logging.info(copy_sql)
+    try:
+        cur.execute(copy_sql)
+        cur.execute("COMMIT;")
+    except Exception as e:
+        cur.execute('ROLLBACK;')
+        raise
+
+
+def get_Redshift_connection(autocommit=True):
+    hook = PostgresHook(postgres_conn_id='redshift_conn')
+    conn = hook.get_conn()
+    conn.autocommit = autocommit
+    return conn.cursor()
+
 
 
 def drop_duplicates(df, criteria_col):
@@ -124,6 +191,14 @@ def upload_to_s3(s3, s3_key, pq_bytes, bucket):
     )
 
 
+def get_s3_key(execution_date):
+    kst_date = convert_to_kst(execution_date)
+    logging.info(f'excution date: {execution_date}')
+    logging.info(f'kst_date: {kst_date}')
+
+    return f'source/kopis/facility_detail/{kst_date.year}/{kst_date.month}/{kst_date.day}/facility_detail_{kst_date.strftime("%Y%m%d")}.parquet'
+
+
 # Define default_args
 default_args = {
     'owner': 'airflow',
@@ -160,4 +235,10 @@ load_to_s3_stage = PythonOperator(
     dag=dag,
 )
 
-get_facility_detail_from_raw >> transform >> load_to_s3_stage
+copy_to_redshift = PythonOperator(
+    task_id='copy_to_redshift',
+    python_callable=copy_to_redshift,
+    dag=dag,
+)
+
+get_facility_detail_from_raw >> transform >> load_to_s3_stage >> copy_to_redshift
