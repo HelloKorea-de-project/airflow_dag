@@ -56,7 +56,7 @@ def transform(**kwargs):
     ]]
 
     # rename columns
-    dropped_df.rename(columns={
+    renamed_df = dropped_df.rename(columns={
         '대분류 (cat1)': 'cat1',
         '중분류 (cat2)': 'cat2',
         '소분류 (cat3)': 'cat3',
@@ -65,7 +65,7 @@ def transform(**kwargs):
         '소분류(Sub category 2)': 'subcategory2',
     })
 
-    return dropped_df.to_json()
+    return renamed_df.to_json()
 
 
 def load_to_s3_stage(**kwargs):
