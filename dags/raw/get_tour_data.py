@@ -145,7 +145,7 @@ load_to_s3_raw = PythonOperator(
 trigger_stage_tour_dag = TriggerDagRunOperator(
     task_id='trigger_stage_tour_dag',
     trigger_dag_id='stage_tour_attractions_data',
-    execution_date='{{ ds }}',
+    execution_date='{{ execution_date }}',
     reset_dag_run=True,
     dag=dag,
 )
