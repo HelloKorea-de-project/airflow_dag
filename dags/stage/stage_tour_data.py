@@ -56,6 +56,8 @@ def transform(**kwargs):
     col_dropped_df = drop_column(unique_df, 'areacode')
 
     return col_dropped_df.to_json()
+
+
 def load_to_s3_stage(**kwargs):
     ti = kwargs['ti']
     bucket = 'hellokorea-stage-layer'
