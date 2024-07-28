@@ -43,6 +43,13 @@ def load_to_s3_stage(**kwargs):
     csv_string = ti.xcom_pull(task_ids='get_area_code_from_raw')
     area_code_df = pd.read_csv(io.BytesIO(csv_string.encode('utf-8')))
 
+    # add korName col
+    area_code_df['korName'] = ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구',
+                               '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구',
+                               '용산구', '은평구', '종로구', '중구', '중랑구']
+    logging.info(area_code_df)
+    logging.info(area_code_df.columns, area_code_df.dtypes)
+
     # add created and updated at timestamp columns
     createdAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
     updateAt = datetime(kst_date.year, kst_date.month, kst_date.day, kst_date.hour, kst_date.minute, kst_date.second)
@@ -71,6 +78,7 @@ def copy_to_redshift(**kwargs):
         rnum bigint,
         code bigint primary key,
         name varchar(32),
+        korName varchar(32),
         createdAt timestamp default GETDATE(),
         updatedAt timestamp default GETDATE()
     );
