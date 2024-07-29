@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
+from airflow.providers.amazon.aws.transfers.s3_to_redshift import S3ToRedshiftOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
@@ -87,65 +88,6 @@ def load_to_s3_stage(**kwargs):
     upload_to_s3(s3, s3_key, pq_bytes, bucket)
 
 
-def copy_to_redshift(**kwargs):
-    cur = get_Redshift_connection(autocommit=False)
-    # drop and create table
-    flush_table_sql = """DROP TABLE IF EXISTS raw_data.seoultourinfo;
-        CREATE TABLE raw_data.seoultourinfo (
-            addr1 varchar(256),
-            addr2 varchar(256),
-            cat1  varchar(32),
-            cat2  varchar(32),
-            cat3  varchar(32),
-            contentid bigint primary key,
-            contenttypeid bigint,
-            firstimage varchar(256),
-            firstimage2 varchar(256),
-            cpyrhtDivcd varchar(32),
-            mapx double precision,
-            mapy double precision,
-            mlevel double precision, 
-            sigungucode double precision,
-            tel varchar(256),
-            title varchar(256),
-            zipcode varchar(32),
-            createdAt timestamp,
-            updatedAt timestamp
-        );
-        """
-    logging.info(flush_table_sql)
-    try:
-        cur.execute(flush_table_sql)
-        cur.execute('COMMIT;')
-    except Exception as e:
-        cur.execute('ROLLBACK;')
-        raise
-
-    # define s3 url
-    execution_date = kwargs['execution_date']
-    kst_date = convert_to_kst(execution_date)
-    logging.info(f'excution date: {execution_date}')
-    logging.info(f'kst_date: {kst_date}')
-    execution_date = kwargs['execution_date']
-    s3_key = get_s3_key(execution_date)
-
-    # copy parquet file to redshift raw_data schema
-    iam_role = Variable.get('hellokorea_redshift_s3_access_role')
-    stage_bucket = Variable.get('S3_STAGE_BUCKET')
-    copy_sql = f"""
-        COPY raw_data.seoultourinfo
-        FROM 's3://{stage_bucket}/{s3_key}'
-        IAM_ROLE '{iam_role}'
-        FORMAT AS PARQUET;
-    """
-    try:
-        cur.execute(copy_sql)
-        cur.execute("COMMIT;")
-    except Exception as e:
-        cur.execute('ROLLBACK;')
-        raise
-
-
 def drop_duplicates(df, criteria_col):
     logging.info(f'total data length before dropping : {len(df)}')
     dropped = df.drop_duplicates(subset=[criteria_col])
@@ -211,7 +153,7 @@ default_args = {
 
 # Define the DAG
 dag = DAG(
-    'stage_tour_attractions_data',
+    'stage_tour_attractions_data_used_s3_to_redshift_operator',
     default_args=default_args,
     description='A DAG to stage tour attractions data every day and save it to S3',
     schedule_interval='@once',
@@ -237,9 +179,17 @@ load_to_s3_stage = PythonOperator(
     dag=dag,
 )
 
-copy_to_redshift = PythonOperator(
+execution_date = "{{ execution_date }}"
+
+copy_to_redshift = S3ToRedshiftOperator(
     task_id='copy_to_redshift',
-    python_callable=copy_to_redshift,
+    redshift_conn_id='redshift_conn',
+    s3_bucket='hellokorea-stage-layer',
+    s3_key=get_s3_key(execution_date),
+    schema="raw_data",
+    table='seoultourinfo',
+    copy_options=['parquet'],
+    method='REPLACE',
     dag=dag,
 )
 
