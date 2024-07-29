@@ -299,7 +299,8 @@ def upload_to_s3(s3, s3_key, pq_bytes, bucket):
     s3.load_bytes(
         bytes_data=pq_bytes,
         key=s3_key,
-        bucket_name=bucket
+        bucket_name=bucket,
+        replace=True
     )
 
 
