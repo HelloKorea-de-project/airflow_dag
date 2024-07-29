@@ -4,6 +4,7 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from airflow.utils.dates import days_ago
+from airflow.models import Variable
 
 from datetime import timedelta, datetime
 import pytz
@@ -121,10 +122,12 @@ def copy_to_redshift(**kwargs):
     s3_key = get_s3_key(execution_date)
 
     # copy parquet file to redshift raw_data schema
+    iam_role = Variable.get('hellokorea_redshift_s3_access_role')
+    stage_bucket = Variable.get('S3_STAGE_BUCKET')
     copy_sql = f"""
         COPY raw_data.performance_facility_detail
-        FROM 's3://hellokorea-stage-layer/{s3_key}'
-        IAM_ROLE 'arn:aws:iam::862327261051:role/hellokorea_redshift_s3_access_role'
+        FROM 's3://{stage_bucket}/{s3_key}'
+        IAM_ROLE '{iam_role}'
         FORMAT AS PARQUET;
     """
     logging.info(copy_sql)
