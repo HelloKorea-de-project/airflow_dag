@@ -116,7 +116,7 @@ def load_to_rds(**kwargs):
     engine = connect_to_rds()
 
     # load to rds
-    df.to_sql('tour_seoulareacode', con=engine,if_exists='replace', index=False)
+    df.to_sql('tour_seoulareacode', con=engine,if_exists='append', index=False)
 
     # close connections
     engine.dispose()

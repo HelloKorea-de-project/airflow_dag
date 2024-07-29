@@ -98,10 +98,11 @@ def join_tables(**kwargs):
 
     # pick necessary columns
     result_df = joined_df[[
-        'contentid', 'contenttypeid', 'code', 'addr1', 'title', 'firstimage', 'mapx', 'mapy', 'createdAt', 'updatedAt'
+        'contentid', 'addr1', 'title', 'firstimage', 'mapx', 'mapy', 'createdAt', 'updatedAt', 'code', 'cat3'
     ]]
     logging.info(result_df.columns)
     logging.info(result_df.dtypes)
+    logging.info(result_df['cat3'])
 
     # define key to load to temp zone
     bucket = 'hellokorea-external-zone'
@@ -159,22 +160,25 @@ def ensure_integrity(**kwargs):
     # remove records not contains 'Seoul' in addr col
     removed_df = null_managed_df[null_managed_df['addr1'].str.contains('Seoul')]
 
+    # drop invalid code
+    removed_df2 = removed_df[removed_df['cat3'].str.len() == 9]
+
     # match sigungu code with address
-    matched_df = match_code_with_addr(removed_df)
+    matched_df = match_code_with_addr(removed_df2)
 
     # rename columns to match with RDS table schema
     result_df = matched_df.rename(
         columns={
             'contentid': 'contentID',
-            'contenttypeid': 'contentTypeID',
-            'code': 'siGunGuCode',
             'addr1': 'addr',
             'title': 'title',
             'firstimage': 'firstImage',
             'mapy': 'la',
             'mapx': 'lo',
             'createdAt': 'createdAt',
-            'updatedAt': 'updatedAt'
+            'updatedAt': 'updatedAt',
+            'code': 'siGunGuCode_id',
+            'cat3': 'cat3_id',
         }
     )
 
@@ -217,18 +221,19 @@ def load_to_rds(**kwargs):
     df = pd.read_parquet(byte_buffer)
     logging.info(f"Dataframe cols: {df.columns}")
     logging.info(f"Dataframe schema: {df.dtypes}")
-
-    # delete temp joined file in s3
-    delete_file_in_s3(s3, s3_temp_key, bucket)
+    logging.info(df['cat3_id'])
 
     # connect to rds
     engine = connect_to_rds()
 
     # load to rds
-    df.to_sql('tour_seoultourinfo', con=engine,if_exists='replace', index=False)
+    df.to_sql('tour_seoultourinfo', con=engine,if_exists='append', index=False)
 
     # close connections
     engine.dispose()
+
+    # delete temp joined file in s3
+    delete_file_in_s3(s3, s3_temp_key, bucket)
 
 def connect_to_rds():
     conn_str = Variable.get('rds_test_db_conn')
@@ -247,7 +252,7 @@ def manage_null(df):
     elif len(df[df['updatedAt'].isnull()]) > 0:
         raise ValueError("Null value has benn detected in 'updatedAt' column")
     # Delete records including NULL with below columns
-    df = df[['contentid', 'contenttypeid', 'code','addr1', 'title', 'firstimage','mapx', 'mapy', 'createdAt', 'updatedAt']].dropna()
+    df = df[['contentid', 'addr1', 'title', 'firstimage', 'mapx', 'mapy', 'createdAt', 'updatedAt', 'code', 'cat3']].dropna()
 
     return df
 
