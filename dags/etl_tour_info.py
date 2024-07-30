@@ -1,23 +1,19 @@
 from airflow import DAG
+from airflow.utils.dates import days_ago
+from airflow.utils.task_group import TaskGroup
+from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.amazon.aws.transfers.s3_to_redshift import S3ToRedshiftOperator
-
-from airflow.utils.dates import days_ago
-from airflow.utils.task_group import TaskGroup
-from datetime import timedelta
-from airflow.models import Variable
-
-import pytz
 import io
-from datetime import datetime
-
 import requests
 import logging
+import json
+import pytz
 import pandas as pd
 import pyarrow.parquet as pq
-import json
+from datetime import datetime, timedelta
 
 
 API_SOURCE = 'tour'
