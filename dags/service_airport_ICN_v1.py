@@ -55,7 +55,8 @@ def dag():
         s3_hook.load_string(
             string_data = json.dumps(data, ensure_ascii=False),
             key = s3_key,
-            bucket_name = s3_bucket
+            bucket_name = s3_bucket,
+            replace = True
         )
         logging.info("api call success")
         return s3_key
@@ -96,7 +97,8 @@ def dag():
             s3_hook.load_bytes(
                 bytes_data = parquet_buffer.getvalue(),
                 key = s3_key,
-                bucket_name="hellokorea-stage-layer" 
+                bucket_name="hellokorea-stage-layer",
+                replace = True
             )
             logging.info("loaded to stage layer")
         except Exception as e:

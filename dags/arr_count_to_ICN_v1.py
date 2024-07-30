@@ -80,7 +80,8 @@ def dag():
         s3_hook.load_bytes(
             bytes_data = parquet_buffer.getvalue(),
             key = s3_key,
-            bucket_name = s3_bucket
+            bucket_name = s3_bucket,
+            replace = True
         )
         logging.info("loaded to stage layer")
         
