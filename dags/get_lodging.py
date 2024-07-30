@@ -136,12 +136,14 @@ def get_and_parsing():
         lo, la = convert_tm_to_wgs84(lo2, la2)  #중부원점TM (EPSG:2097) 좌표를 GRS80 (WGS84) 좌표계로 변환
         records.append([MGTNO, RDNWHLADDR, SIGUNGUCODE, BPLCNM, UPTAENM, lo, la])
     logging.info("parsing done")
-    return records
+    json_records = json.dumps(records, ensure_ascii=False)
+    return json_records
 
 
 # 3-1. 파싱한 데이터를 RDS에 적재
 @task
-def parsing_data_to_RDS(records, table):
+def parsing_data_to_RDS(json_records, table):
+    records = json.loads(json_records)
     connection = get_RDS_connection()
     cursor = connection.cursor()
     
@@ -168,7 +170,8 @@ def parsing_data_to_RDS(records, table):
 
 # 3-2.파싱한 데이터를 S3-stage layer 적재
 @task
-def parsing_data_to_stage(records):
+def parsing_data_to_stage(json_records):
+    records = json.loads(json_records)
     df = pd.DataFrame(records, columns=['MGTNO', 'RDNWHLADDR', 'SIGUNGUCODE', 'BPLCNM', 'UPTAENM', 'lo', 'la'])
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
     parquet_file = 'lodging.parquet'
