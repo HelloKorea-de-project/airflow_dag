@@ -112,7 +112,7 @@ def dag():
                     "depart.0": nowSearchDate,
                 }
                 results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, api_actor_run(run_input, flight_price_api)])
-            time.sleep(150)
+            time.sleep(180)
         logging.info("api call success")
         return results
         
