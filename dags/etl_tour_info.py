@@ -708,7 +708,6 @@ with TaskGroup("raw_to_stage", tooltip="Tasks for load raw bucket data to stage 
         task_id='load_raw_attraction_data_to_stage',
         python_callable=load_raw_attraction_data_to_stage,
     )
-
     load_raw_area_code_to_stage = PythonOperator(
         task_id='load_raw_area_code_to_stage',
         python_callable=load_raw_area_code_to_stage,
@@ -718,7 +717,7 @@ with TaskGroup("raw_to_stage", tooltip="Tasks for load raw bucket data to stage 
         python_callable=load_raw_service_code_to_stage,
     )
 
-    [load_raw_area_code_to_stage, load_raw_service_code_to_stage]
+    [load_raw_attraction_data_to_stage, load_raw_area_code_to_stage, load_raw_service_code_to_stage]
 
 
 with TaskGroup("copy_to_redshift", tooltip="Tasks for copy stage bucket files to redshift raw_data schema", dag=dag) as copy_to_redshift:
