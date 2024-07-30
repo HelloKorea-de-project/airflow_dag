@@ -6,14 +6,13 @@
 from airflow import DAG
 from airflow.decorators import task
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime
 from airflow.models import Variable
 from pyproj import CRS, Transformer
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
-import boto3
 import logging
 import requests
 import json
@@ -30,10 +29,9 @@ def get_Redshift_connection(autocommit=True):
 # Airflow Connection에 등록된 S3 연결 정보를 가져옴
 def s3_connection():
     aws_conn_id = 's3_conn'
-    aws_hook = AwsBaseHook(aws_conn_id)
-    credentials = aws_hook.get_credentials()
-    s3 = boto3.client('s3', aws_access_key_id=credentials.access_key, aws_secret_access_key=credentials.secret_key)
-    return s3
+    s3_hook = S3Hook(aws_conn_id)
+    s3_client = s3_hook.get_conn()
+    return s3_client
 
 
 # Airflow Connection에 등록된 RDS 연결 정보를 가져옴
@@ -94,7 +92,7 @@ def call_api():
         lodgings1 = response.json()
         lodgings.extend(lodgings1['LOCALDATA_031103']['row'])
     
-    # Boto3 클라이언트를 생성 -> S3에 저장
+    # s3 클라이언트를 생성 -> S3에 저장
     s3 = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
     file_name = 'lodging.json'
