@@ -13,9 +13,7 @@ from io import BytesIO, StringIO
 
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,28,18,0),
-        'retries':1,
-        'retry_delay': timedelta(minutes=3)
+        'start_date' : datetime(2024,7,28,18,0)
 }
 
 @dag(
@@ -153,6 +151,7 @@ def dag():
             )
 
         logging.info(f"loaded raw layer")
+        return dataset_list
 
                 
     async def transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
@@ -222,6 +221,8 @@ def dag():
         """
         loop = asyncio.get_event_loop()
         loop.run_until_complete(extract_from_s3(dataset_list, current_date))
+        
+        return dataset_list
             
     def update_redshift_query(cur, s3_path):
         """
@@ -302,7 +303,9 @@ def dag():
         if cur:
             cur.close()
             cur.connection.close()
+        
         logging.info("update redshift ended")
+        return current_date
         
         
     @task
@@ -332,8 +335,8 @@ def dag():
             """
             cur.execute(unload_query)
             cur.execute("COMMIT;")
-            
             return s3_key_to_unload
+            
         except Exception as e:
             cur.execute("ROLLBACK;")
             raise e
@@ -386,11 +389,15 @@ def dag():
     search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
     
     departures = get_high_frequency_airports()
-    dataset_list = api_call(departures, search_date)
-    data_to_raw(dataset_list, current_date)
-    raw_to_stage(dataset_list, current_date)
-    update_redshift(dataset_list, current_date)
-    s3_key_to_prod = unload_redshift_to_s3(current_date)
-    update_rds(s3_key_to_prod)
+    api_call_task = api_call(departures, search_date)
+    
+    data_to_raw_task = data_to_raw(api_call_task, current_date)
+    raw_to_stage_task = raw_to_stage(data_to_raw_task, current_date)
+    update_redshift_task = update_redshift(raw_to_stage_task, current_date)
+    
+    unload_s3_task = unload_redshift_to_s3(update_redshift_task)
+    update_rds_task = update_rds(unload_s3_task)
+    
+    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
     
 dag=dag()
