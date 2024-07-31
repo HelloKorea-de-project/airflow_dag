@@ -171,7 +171,7 @@ def load_raw_service_code_to_stage(**kwargs):
 
 def create_table_if_not_exists(**kwargs):
     # connect to redshift
-    hook = connect_to_postgres(conn_id='redshift_conn', database='hellokorea_db', autocommit=False)
+    hook = connect_to_postgres(conn_id='redshift_conn', autocommit=False)
     cursor = hook.get_cursor()
 
     # create tables if not exists
@@ -461,7 +461,7 @@ def load_attraction_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'contentID')
@@ -489,7 +489,7 @@ def load_area_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'code')
@@ -517,7 +517,7 @@ def load_service_code_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'cat3')
@@ -718,9 +718,9 @@ def delete_file_in_s3(s3, s3_key, bucket):
     )
 
 
-def connect_to_postgres(conn_id, database, autocommit=True):
+def connect_to_postgres(conn_id, autocommit=True):
     # connect postgres rds
-    hook = PostgresHook(postgres_conn_id=conn_id, database=database)
+    hook = PostgresHook(postgres_conn_id=conn_id)
     conn = hook.get_conn()
     conn.autocommit = autocommit
     return hook
