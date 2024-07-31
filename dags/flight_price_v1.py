@@ -85,7 +85,7 @@ def dag():
         flight_price_api = Variable.get("flight_price_api")
         
         results = []
-        failed = deque() # Failed actor
+        failed = [] # Failed actor
         for airport, country, currency in departures:
             depAirportCode = airport
             depCountryCode = country
