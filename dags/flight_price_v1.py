@@ -393,6 +393,6 @@ def dag():
     s3_key_to_prod = unload_redshift_to_s3(current_date)
     update_rds(s3_key_to_prod)
     
-    get_high_frequency_airports >> api_call >> data_to_raw >> raw_to_stage >> update_redshift >> unload_redshift_to_s3 >> update_rds
-    
 dag=dag()
+
+get_high_frequency_airports >> api_call >> data_to_raw >> raw_to_stage >> update_redshift >> unload_redshift_to_s3 >> update_rds
