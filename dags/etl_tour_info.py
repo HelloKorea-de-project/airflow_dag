@@ -169,6 +169,69 @@ def load_raw_service_code_to_stage(**kwargs):
     return s3_key
 
 
+def create_table_if_not_exists(**kwargs):
+    # connect to redshift
+    hook = connect_to_postgres(conn_id='redshift_conn', database='hellokorea_db', autocommit=False)
+    cursor = hook.get_cursor()
+
+    # create tables if not exists
+    raw_schema = 'raw_data'
+    seoul_tour_info_table = 'seoul_tour_info'
+    create_seoul_tour_info_sql = f"""CREATE TABLE IF NOT EXISTS {raw_schema}.{seoul_tour_info_table} (
+        addr1 varchar(256),
+        addr2 varchar(256),
+        cat1  varchar(32),
+        cat2  varchar(32),
+        cat3  varchar(32),
+        contentid bigint primary key,
+        contenttypeid bigint,
+        firstimage varchar(256),
+        firstimage2 varchar(256),
+        cpyrhtDivcd varchar(32),
+        mapx double precision,
+        mapy double precision,
+        mlevel double precision,
+        sigungucode double precision,
+        tel varchar(256),
+        title varchar(256),
+        zipcode varchar(32),
+        createdAt timestamp,
+        updatedAt timestamp  
+    )"""
+
+    dim_schema = 'dimension_data'
+    seoul_area_code_table = 'seoul_area_code'
+    create_seoul_area_code = f"""CREATE TABLE IF NOT EXISTS {dim_schema}.{seoul_area_code_table} (
+        rnum bigint,
+        code bigint primary key,
+        name varchar(32),
+        korName varchar(32),
+        createdAt timestamp default GETDATE(),
+        updatedAt timestamp default GETDATE()  
+    )"""
+
+    tour_service_code_table = 'tour_service_code'
+    create_tour_service_code = f"""CREATE TABLE IF NOT EXISTS {dim_schema}.{tour_service_code_table} (
+        contenttypeid bigint,
+        contenttypename varchar(256),
+        cat1 varchar(32),
+        cat2 varchar(32),
+        cat3 varchar(32) primary key,
+        maincategory varchar(256),
+        subcategory1 varchar(256),
+        subcategory2 varchar(256),
+        createdAt timestamp default GETDATE(),
+        updatedAt timestamp default GETDATE()  
+    )"""
+    try:
+        cursor.execute(create_seoul_tour_info_sql)
+        cursor.execute(create_seoul_area_code)
+        cursor.execute(create_tour_service_code)
+        cursor.execute("COMMIT;")
+    except Exception as e:
+        cursor.execute("ROLLBACK;")
+        raise
+
 def join_stage_tables(**kwargs):
     ti = kwargs['ti']
     # get tour attraction stage key
@@ -398,7 +461,7 @@ def load_attraction_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'contentID')
@@ -426,7 +489,7 @@ def load_area_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'code')
@@ -454,7 +517,7 @@ def load_service_code_to_rds(**kwargs):
     df = read_parquet_from_s3_obj(s3_obj)
 
     # connect postgres rds
-    hook = connect_to_postgres(autocommit=False)
+    hook = connect_to_postgres(conn_id='postgres_conn', database='hellokorea_db', autocommit=False)
 
     # update data to rds
     upsert_table_transaction(hook, schema, table, df, 'cat3')
@@ -520,15 +583,6 @@ def add_column_to_area_code(df, kst_date):
     add_timestamp_cols(df, kst_date)
     logging.info(df)
     logging.info(df.columns, df.dtypes)
-
-
-
-def connect_to_postgres(autocommit=True):
-    # connect postgres rds
-    hook = PostgresHook(postgres_conn_id='postgres_conn', database='test_db')
-    conn = hook.get_conn()
-    conn.autocommit = autocommit
-    return hook
 
 
 def transform_service_code(df):
@@ -664,6 +718,14 @@ def delete_file_in_s3(s3, s3_key, bucket):
     )
 
 
+def connect_to_postgres(conn_id, database, autocommit=True):
+    # connect postgres rds
+    hook = PostgresHook(postgres_conn_id=conn_id, database=database)
+    conn = hook.get_conn()
+    conn.autocommit = autocommit
+    return hook
+
+
 def upsert_table_transaction(hook, schema, table, df, pk):
     cursor = hook.get_cursor()
     try:
@@ -721,12 +783,18 @@ with TaskGroup("raw_to_stage", tooltip="Tasks for load raw bucket data to stage 
 
 
 with TaskGroup("copy_to_redshift", tooltip="Tasks for copy stage bucket files to redshift raw_data schema", dag=dag) as copy_to_redshift:
+    create_table_if_not_exists = PythonOperator(
+        task_id='create_table_if_not_exists',
+        python_callable=create_table_if_not_exists,
+        dag=dag
+    )
+
     copy_to_redshift_raw_data_seoultourinfo = S3ToRedshiftOperator(
         task_id='copy_to_redshift_raw_data_seoultourinfo',
         s3_bucket=Variable.get('S3_STAGE_BUCKET'),
         s3_key="{{ task_instance.xcom_pull(task_ids='raw_to_stage.load_raw_attraction_data_to_stage') }}",
         schema='raw_data',
-        table='seoultourinfo',
+        table='seoul_tour_info',
         copy_options=['parquet'],
         redshift_conn_id='redshift_conn',
         aws_conn_id='s3_conn',
@@ -758,7 +826,7 @@ with TaskGroup("copy_to_redshift", tooltip="Tasks for copy stage bucket files to
         upsert_keys=['cat3'],
     )
 
-    [copy_to_redshift_raw_data_seoultourinfo, copy_to_redshift_dimension_data_seoulareacode, copy_to_redshift_dimension_data_seoulareacode]
+    create_table_if_not_exists >> [copy_to_redshift_raw_data_seoultourinfo, copy_to_redshift_dimension_data_seoulareacode, copy_to_redshift_dimension_data_tourservicecode]
 
 join_stage_tables = PythonOperator(
     task_id='join_stage_tables',
