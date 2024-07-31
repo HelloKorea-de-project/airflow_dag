@@ -112,6 +112,7 @@ def dag():
                 datasetId = api_actor_run(run_input, flight_price_api)
                 if not datasetId:
                     failed.append(run_input)
+                    continue
                 results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
                     
             time.sleep(170)
@@ -121,7 +122,8 @@ def dag():
             while failed:
                 run_input = failed.pop()
                 datasetId = api_actor_run(run_input, flight_price_api)
-                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
+                if datasetId:
+                    results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
             
         logging.info("api call success")
         return results
@@ -390,5 +392,7 @@ def dag():
     update_redshift(dataset_list, current_date)
     s3_key_to_prod = unload_redshift_to_s3(current_date)
     update_rds(s3_key_to_prod)
+    
+    get_high_frequency_airports >> api_call >> data_to_raw >> raw_to_stage >> update_redshift >> unload_redshift_to_s3 >> update_rds
     
 dag=dag()
