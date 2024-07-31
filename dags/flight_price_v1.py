@@ -42,8 +42,6 @@ def dag():
         Tasks to get the number of flight plans
         by departure airport table (arrcounttoicn)
         and airport information table (serviceairporticn)
-        
-        input : 
         """
 
         cur = get_redshift_connection()
@@ -78,9 +76,8 @@ def dag():
             time.sleep(0.3)
             datasetId = response.json()["data"]["defaultDatasetId"]
             return datasetId
-        except Exception as e:
-            logging.info("api actor error")
-            raise e
+        except:
+            return False
         
     @task
     def api_call(departures, search_date):
@@ -88,6 +85,7 @@ def dag():
         flight_price_api = Variable.get("flight_price_api")
         
         results = []
+        failed = deque() # Failed actor
         for airport, country, currency in departures:
             depAirportCode = airport
             depCountryCode = country
@@ -111,8 +109,20 @@ def dag():
                     "target.0": "ICN",
                     "depart.0": nowSearchDate,
                 }
-                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, api_actor_run(run_input, flight_price_api)])
-            time.sleep(180)
+                datasetId = api_actor_run(run_input, flight_price_api)
+                if not datasetId:
+                    failed.append(run_input)
+                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
+                    
+            time.sleep(170)
+        
+        # Rerunning failed actors
+        if failed:
+            while failed:
+                run_input = failed.pop()
+                datasetId = api_actor_run(run_input, flight_price_api)
+                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
+            
         logging.info("api call success")
         return results
         
@@ -371,7 +381,8 @@ def dag():
     
                 
     current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)} # dictionary
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
+    
     departures = get_high_frequency_airports()
     dataset_list = api_call(departures, search_date)
     data_to_raw(dataset_list, current_date)
