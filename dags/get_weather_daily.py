@@ -1,18 +1,17 @@
 '''
-* 기상청 API 사용 DAG 작성_v1*
+* 기상청 API 사용 DAG 작성_매일시행*
 '''
 
 
 from airflow import DAG
 from airflow.decorators import task
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime, timedelta
 from airflow.models import Variable
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
-import boto3
 import logging
 import requests
 import json
@@ -30,10 +29,9 @@ def get_Redshift_connection(autocommit=True):
 # Airflow Connection에 등록된 S3 연결 정보를 가져옴
 def s3_connection():
     aws_conn_id = 's3_conn'
-    aws_hook = AwsBaseHook(aws_conn_id)
-    credentials = aws_hook.get_credentials()
-    s3 = boto3.client('s3', aws_access_key_id=credentials.access_key, aws_secret_access_key=credentials.secret_key)
-    return s3
+    s3_hook = S3Hook(aws_conn_id)
+    s3_client = s3_hook.get_conn()
+    return s3_client
 
 
 # Airflow Connection에 등록된 RDS 연결 정보를 가져옴
@@ -73,25 +71,25 @@ def call_api():
     data = response.json()
 
     # Boto3 클라이언트를 생성 -> S3에 저장
-    s3 = s3_connection()
+    s3_client = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
     file_name = 'weather.json'
 
     with open(file_name, 'w') as f:
         json.dump(data, f)
 
-    s3.upload_file(file_name, bucket_name, s3_rawlayer_path())
+    s3_client.upload_file(file_name, bucket_name, s3_rawlayer_path())
     logging.info("s3 upload done")
 
 
 # 2. S3에서 JSON 파일을 가져오고 파싱
 @task
 def get_and_parsing():
-    s3 = s3_connection()
+    s3_client = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
     file_name = s3_rawlayer_path()
 
-    obj = s3.get_object(Bucket=bucket_name, Key=file_name)
+    obj = s3_client.get_object(Bucket=bucket_name, Key=file_name)
     weathers2 = obj['Body'].read().decode('utf-8')
     weathers1 = json.loads(weathers2)
     weathers = weathers1['response']['body']['items']['item']
@@ -184,7 +182,7 @@ def load_to_redshift(schema, table):
 
 with DAG(
     dag_id = 'Weather_daily',
-    start_date = datetime(2024,7,31),
+    start_date = datetime(2024,8,1),
     catchup=False,
     tags=['API'],
     schedule = '0 3 * * *' #매일 UTC 3시 , KST 12시 시행 (전날 데이터 11시에 업데이트 됨)
