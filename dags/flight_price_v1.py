@@ -359,7 +359,13 @@ def dag():
                 TRUNCATE TABLE {table};
             """
             cur.execute(truncate_query)
-            
+            cur.execute("COMMIT;")
+        except Exception as e:
+            cur.execute("ROLLBACK;")
+            raise e
+        
+        try:
+            cur.execute("BEGIN;")
             cur.execute("CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;")
                 
             copy_query = f"""
@@ -386,18 +392,18 @@ def dag():
     
                 
     current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
+    # search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
     
-    departures = get_high_frequency_airports()
-    api_call_task = api_call(departures, search_date)
+    # departures = get_high_frequency_airports()
+    # api_call_task = api_call(departures, search_date)
     
-    data_to_raw_task = data_to_raw(api_call_task, current_date)
-    raw_to_stage_task = raw_to_stage(data_to_raw_task, current_date)
-    update_redshift_task = update_redshift(raw_to_stage_task, current_date)
+    # data_to_raw_task = data_to_raw(api_call_task, current_date)
+    # raw_to_stage_task = raw_to_stage(data_to_raw_task, current_date)
+    # update_redshift_task = update_redshift(raw_to_stage_task, current_date)
     
-    unload_s3_task = unload_redshift_to_s3(update_redshift_task)
+    unload_s3_task = unload_redshift_to_s3(current_date)
     update_rds_task = update_rds(unload_s3_task)
-    
-    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
+    # departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
+    unload_s3_task >> update_rds_task
     
 dag=dag()
