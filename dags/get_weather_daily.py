@@ -74,7 +74,7 @@ def call_api():
     # Boto3 클라이언트를 생성 -> S3에 저장
     s3_client = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
-    file_name = 'weather.json'
+    file_name = s3_rawlayer_path()
 
     with open(file_name, 'w') as f:
         json.dump(data, f)
