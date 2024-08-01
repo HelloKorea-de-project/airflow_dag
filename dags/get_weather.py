@@ -50,15 +50,15 @@ def call_api():
     response = requests.get(Variable.get("weather_api_key"), params=params)
     data = response.json()
 
-    # Boto3 클라이언트를 생성 -> S3에 저장
-    s3_client = s3_connection()
+    # S3에 저장
+    s3_hook = S3Hook(aws_conn_id="s3_conn")
     bucket_name = 'hellokorea-raw-layer'
-    file_name = 'weather.json'
-
-    with open(file_name, 'w') as f:
-        json.dump(data, f)
-
-    s3_client.upload_file(file_name, bucket_name, 'source/weather/2023/7/weather.json')
+    s3_hook.load_string(
+                string_data = json.dumps(data),
+                key = 'source/weather/2023/7/weather.json',
+                bucket_name = bucket_name,
+                replace = True
+            )
     logging.info("s3 upload done")
 
 
