@@ -11,6 +11,6 @@
 /dags/stage/__pycache__/
 /dags/rds/__pycache__/
 /.idea
-test.py
+dags/test.py
 *.csv
 *.parquet
