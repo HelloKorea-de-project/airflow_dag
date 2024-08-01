@@ -24,7 +24,7 @@ default_args = {
 
 @dag(
     dag_id='flight_price_v1',
-    schedule_interval = timedelta(days=3),
+    schedule = timedelta(days=3),
     max_active_runs = 1,
     default_args=default_args,
     catchup=False,
@@ -46,8 +46,6 @@ def dag():
         Tasks to get the number of flight plans
         by departure airport table (arrcounttoicn)
         and airport information table (serviceairporticn)
-        
-        input : 
         """
 
         cur = get_redshift_connection()
@@ -82,9 +80,8 @@ def dag():
             time.sleep(0.3)
             datasetId = response.json()["data"]["defaultDatasetId"]
             return datasetId
-        except Exception as e:
-            logging.info("api actor error")
-            raise e
+        except:
+            return False
         
     @task
     def api_call(departures, search_date):
@@ -92,6 +89,7 @@ def dag():
         flight_price_api = Variable.get("flight_price_api")
         
         results = []
+        failed = [] # Failed actor
         for airport, country, currency in departures:
             depAirportCode = airport
             depCountryCode = country
@@ -115,8 +113,12 @@ def dag():
                     "target.0": "ICN",
                     "depart.0": nowSearchDate,
                 }
-                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, api_actor_run(run_input, flight_price_api)])
-            time.sleep(150)
+                datasetId = api_actor_run(run_input, flight_price_api)
+                if datasetId:
+                    results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
+                    
+            time.sleep(180)
+            
         logging.info("api call success")
         return results
         
@@ -126,7 +128,7 @@ def dag():
         load api data to raw layer
         """
         logging.info("start load to raw layer")
-        time.sleep(60) # to wait dataset completed
+        time.sleep(100) # to wait dataset completed
         
         flight_price_api = Variable.get("flight_price_api")
         client = ApifyClient(flight_price_api)
@@ -145,6 +147,7 @@ def dag():
             )
 
         logging.info(f"loaded raw layer")
+        return dataset_list
 
                 
     async def transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
@@ -214,6 +217,8 @@ def dag():
         """
         loop = asyncio.get_event_loop()
         loop.run_until_complete(extract_from_s3(dataset_list, current_date))
+        
+        return dataset_list
             
     def update_redshift_query(cur, s3_path):
         """
@@ -275,7 +280,7 @@ def dag():
             update_query = f"""
                 UPDATE {schema}.{table}
                 SET isExpired = True
-                WHERE extractedDate < '{current_date}';
+                WHERE extractedDate <= '{current_date}';
             """
             cur.execute(update_query)
             cur.execute("COMMIT;")
@@ -294,7 +299,9 @@ def dag():
         if cur:
             cur.close()
             cur.connection.close()
+        
         logging.info("update redshift ended")
+        return current_date
         
         
     @task
@@ -324,8 +331,8 @@ def dag():
             """
             cur.execute(unload_query)
             cur.execute("COMMIT;")
-            
             return s3_key_to_unload
+            
         except Exception as e:
             cur.execute("ROLLBACK;")
             raise e
@@ -348,7 +355,13 @@ def dag():
                 TRUNCATE TABLE {table};
             """
             cur.execute(truncate_query)
-            
+            cur.execute("COMMIT;")
+        except Exception as e:
+            cur.execute("ROLLBACK;")
+            raise e
+        
+        try:
+            cur.execute("BEGIN;")
             cur.execute("CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;")
                 
             copy_query = f"""
@@ -374,14 +387,20 @@ def dag():
                 cur.connection.close()
     
                 
-    current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)} # dictionary
-    departures = get_high_frequency_airports()
-    dataset_list = api_call(departures, search_date)
-    data_to_raw(dataset_list, current_date)
-    raw_to_stage(dataset_list, current_date)
-    update_redshift(dataset_list, current_date)
-    s3_key_to_prod = unload_redshift_to_s3(current_date)
-    update_rds(s3_key_to_prod)
+    current_date = '{{ macros.ds_add(ds, 3) }}'
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
     
+    departures = get_high_frequency_airports()
+    api_call_task = api_call(departures, search_date)
+    
+    data_to_raw_task = data_to_raw(api_call_task, current_date)
+    raw_to_stage_task = raw_to_stage(data_to_raw_task, current_date)
+
+    update_redshift_task = update_redshift(raw_to_stage_task, current_date)
+    
+    unload_s3_task = unload_redshift_to_s3(current_date)
+    update_rds_task = update_rds(unload_s3_task)
+    
+    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
+
 dag=dag()
