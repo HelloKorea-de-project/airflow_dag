@@ -182,7 +182,7 @@ def load_to_redshift(schema, table):
 
 with DAG(
     dag_id = 'Weather_daily',
-    start_date = datetime(2024,8,1),
+    start_date = datetime(2024,7,31),
     catchup=False,
     tags=['API'],
     schedule = '0 3 * * *' #매일 UTC 3시 , KST 12시 시행 (전날 데이터 11시에 업데이트 됨)
