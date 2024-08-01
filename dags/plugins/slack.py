@@ -16,7 +16,7 @@ def on_failure_callback(context):
     """
     
     text = f':scream: Airflow task failed :scream:'
-    text += f'\n* `DAG`:  {context.get("task_instance").dag_id}' + f'\n* `Task`:  {context.get("task_instance").task_id}' + f'\n* `Run ID`:  {context.get("run_id")}' + f'\n* `Execution Time`:  {context.get("execution_date")}' + f'\n* `Log URL`:  {context.get("log_url")}\n '
+    text += f'\n* `DAG`:  {context.get("task_instance").dag_id}' + f'\n* `Task`:  {context.get("task_instance").task_id}' + f'\n* `Run ID`:  {context.get("run_id")}\n'
     text += "```" + str(context.get('exception')) +"```"
     send_message_to_a_slack_channel(text, ":scream:")
 

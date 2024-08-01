@@ -9,6 +9,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime
 from airflow.models import Variable
+from plugins import slack
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
@@ -50,15 +51,15 @@ def call_api():
     response = requests.get(Variable.get("weather_api_key"), params=params)
     data = response.json()
 
-    # Boto3 클라이언트를 생성 -> S3에 저장
-    s3_client = s3_connection()
+    # S3에 저장
+    s3_hook = S3Hook(aws_conn_id="s3_conn")
     bucket_name = 'hellokorea-raw-layer'
-    file_name = 'weather.json'
-
-    with open(file_name, 'w') as f:
-        json.dump(data, f)
-
-    s3_client.upload_file(file_name, bucket_name, 'source/weather/2023/7/weather.json')
+    s3_hook.load_string(
+                string_data = json.dumps(data),
+                key = 'source/weather/2023/7/weather.json',
+                bucket_name = bucket_name,
+                replace = True
+            )
     logging.info("s3 upload done")
 
 
@@ -168,7 +169,8 @@ with DAG(
     start_date = datetime(2024,7,31),
     catchup=False,
     tags=['API'],
-    schedule = '@once' #처음 한번만 실행
+    schedule = '@once', #처음 한번만 실행
+    on_failure_callback=slack.on_failure_callback
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
