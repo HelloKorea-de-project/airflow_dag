@@ -16,7 +16,7 @@ default_args = {
 @dag(
     dag_id = "airport_information_v1",
     start_date = datetime(2024,7,28,15,0),
-    schedule_interval = "@once",
+    schedule = "@once",
     max_active_runs = 1,
     default_args=default_args,
     tags=['yjshin','airport_information']

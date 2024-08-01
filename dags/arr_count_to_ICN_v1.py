@@ -136,7 +136,7 @@ def dag():
         
         logging.info("redshift updated")
 
-    current_date = '{{ ds }}'
+    current_date = '{{ macros.ds_add(ds, 10) }}'
     s3_key_stage = api_to_stage(current_date)
     update_redshift(current_date, s3_key_stage)
 
