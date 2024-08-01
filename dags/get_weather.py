@@ -9,6 +9,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime
 from airflow.models import Variable
+from plugins import slack
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
@@ -168,7 +169,8 @@ with DAG(
     start_date = datetime(2024,7,31),
     catchup=False,
     tags=['API'],
-    schedule = '@once' #처음 한번만 실행
+    schedule = '@once', #처음 한번만 실행
+    on_failure_callback=slack.on_failure_callback
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
