@@ -18,7 +18,7 @@ default_args = {
 
 @dag(
     dag_id='flight_price_v1',
-    schedule_interval = timedelta(days=3),
+    schedule = timedelta(days=3),
     max_active_runs = 1,
     default_args=default_args,
     catchup=False,
@@ -88,7 +88,7 @@ def dag():
             depAirportCode = airport
             depCountryCode = country
             currencyCode = currency
-            for days in range(4, 34):
+            for days in range(1, 31):
                 nowSearchDate = search_date[f'date_{days}']
                 print(depAirportCode, nowSearchDate)
                 run_input = {
@@ -381,8 +381,8 @@ def dag():
                 cur.connection.close()
     
                 
-    current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
+    current_date = '{{ macros.ds_add(ds, 3) }}'
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
     
     departures = get_high_frequency_airports()
     api_call_task = api_call(departures, search_date)
