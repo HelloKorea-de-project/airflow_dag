@@ -170,7 +170,7 @@ with DAG(
     catchup=False,
     tags=['API'],
     schedule = '@once', #처음 한번만 실행
-    on_failure_callback=slack.on_failure_callback
+    on_failure_callback = slack.on_failure_callback
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
