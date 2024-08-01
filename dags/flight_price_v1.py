@@ -13,7 +13,7 @@ from io import BytesIO, StringIO
 
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,29,2,0)
+        'start_date' : datetime(2024,7,29,2,15)
 }
 
 @dag(
@@ -88,7 +88,7 @@ def dag():
             depAirportCode = airport
             depCountryCode = country
             currencyCode = currency
-            for days in range(1, 31):
+            for days in range(4, 34):
                 nowSearchDate = search_date[f'date_{days}']
                 print(depAirportCode, nowSearchDate)
                 run_input = {
@@ -382,7 +382,7 @@ def dag():
     
                 
     current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
     
     departures = get_high_frequency_airports()
     api_call_task = api_call(departures, search_date)
