@@ -9,8 +9,5 @@
 /dags/__pycache__/
 /dags/raw/__pycache__/
 /dags/stage/__pycache__/
-/dags/rds/__pycache__/
-/.idea
-dags/test.py
 *.csv
 *.parquet
