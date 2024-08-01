@@ -10,10 +10,14 @@ import requests, logging, json, psycopg2
 import pandas as pd
 from io import BytesIO
 
+from plugins import slack
+
+
 default_args = {
         'owner': 'yjshin',
         'retries': 1,
-        'retry_delay': timedelta(minutes=3)
+        'retry_delay': timedelta(minutes=3),
+        'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(
