@@ -10,6 +10,7 @@ from airflow.utils.dates import days_ago
 from airflow.utils.task_group import TaskGroup
 from datetime import datetime, timedelta
 from airflow.models import Variable
+from plugins import slack
 
 import pytz
 import io
@@ -436,6 +437,7 @@ default_args = {
     'owner': 'airflow',
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
+    'on_failure_callback': slack.on_failure_callback
 }
 
 # Define the DAG

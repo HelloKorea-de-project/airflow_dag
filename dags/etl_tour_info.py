@@ -6,6 +6,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.amazon.aws.transfers.s3_to_redshift import S3ToRedshiftOperator
+from plugins import slack
 import io
 import requests
 import logging
@@ -748,6 +749,7 @@ default_args = {
     'owner': 'airflow',
     'retries': 1,
     'retry_delay': timedelta(minutes=1),
+    'on_failure_callback': slack.on_failure_callback
 }
 
 dag = DAG(

@@ -16,7 +16,7 @@ from plugins import slack
 
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,29,2,15)
+        'start_date' : datetime(2024,7,29,2,15),
         'retries':1,
         'retry_delay': timedelta(minutes=3),
         'on_failure_callback': slack.on_failure_callback
