@@ -6,7 +6,7 @@
 from airflow import DAG
 from airflow.decorators import task
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.amazon.aws.hooks.base_aws import AwsBaseHook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime
 from airflow.models import Variable
 from pyproj import CRS, Transformer
@@ -14,7 +14,6 @@ from plugins import slack
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
-import boto3
 import logging
 import requests
 import json
@@ -31,10 +30,9 @@ def get_Redshift_connection(autocommit=True):
 # Airflow Connection에 등록된 S3 연결 정보를 가져옴
 def s3_connection():
     aws_conn_id = 's3_conn'
-    aws_hook = AwsBaseHook(aws_conn_id)
-    credentials = aws_hook.get_credentials()
-    s3 = boto3.client('s3', aws_access_key_id=credentials.access_key, aws_secret_access_key=credentials.secret_key)
-    return s3
+    s3_hook = S3Hook(aws_conn_id)
+    s3_client = s3_hook.get_conn()
+    return s3_client
 
 
 # Airflow Connection에 등록된 RDS 연결 정보를 가져옴
@@ -95,7 +93,7 @@ def call_api():
         lodgings1 = response.json()
         lodgings.extend(lodgings1['LOCALDATA_031103']['row'])
     
-    # Boto3 클라이언트를 생성 -> S3에 저장
+    # s3 클라이언트를 생성 -> S3에 저장
     s3 = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
     file_name = 'lodging.json'
@@ -139,12 +137,14 @@ def get_and_parsing():
         lo, la = convert_tm_to_wgs84(lo2, la2)  #중부원점TM (EPSG:2097) 좌표를 GRS80 (WGS84) 좌표계로 변환
         records.append([MGTNO, RDNWHLADDR, SIGUNGUCODE, BPLCNM, UPTAENM, lo, la])
     logging.info("parsing done")
-    return records
+    json_records = json.dumps(records, ensure_ascii=False)
+    return json_records
 
 
 # 3-1. 파싱한 데이터를 RDS에 적재
 @task
-def parsing_data_to_RDS(records, table):
+def parsing_data_to_RDS(json_records, table):
+    records = json.loads(json_records)
     connection = get_RDS_connection()
     cursor = connection.cursor()
     
@@ -171,7 +171,8 @@ def parsing_data_to_RDS(records, table):
 
 # 3-2.파싱한 데이터를 S3-stage layer 적재
 @task
-def parsing_data_to_stage(records):
+def parsing_data_to_stage(json_records):
+    records = json.loads(json_records)
     df = pd.DataFrame(records, columns=['MGTNO', 'RDNWHLADDR', 'SIGUNGUCODE', 'BPLCNM', 'UPTAENM', 'lo', 'la'])
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
     parquet_file = 'lodging.parquet'
