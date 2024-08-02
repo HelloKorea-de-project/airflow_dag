@@ -756,7 +756,7 @@ dag = DAG(
     'etl_tour_attractions_data',
     default_args=default_args,
     description='A DAG to update tour attractions data every day and load it to S3, redshift and rds',
-    schedule_interval='@daily',
+    schedule_interval='0 4 * * *',
     start_date=days_ago(1),
     catchup=False,
 )
