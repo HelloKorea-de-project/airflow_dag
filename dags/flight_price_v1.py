@@ -13,7 +13,7 @@ from io import BytesIO, StringIO
 
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,29,4,30)
+        'start_date' : datetime(2024,7,29,5,30)
 }
 
 @dag(

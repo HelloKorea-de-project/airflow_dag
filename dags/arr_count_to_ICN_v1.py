@@ -13,13 +13,13 @@ import pyarrow.parquet as pq
 
 default_args = {
         'owner' : "yjshin",
+        'start_date' : datetime(2024,7,28,5,0),
         'retries':1,
         'retry_delay': timedelta(minutes=3)
 }
 
 @dag(
     dag_id = "arr_count_to_ICN_v1",
-    start_date = datetime(2024,7,28,4,0),
     schedule = timedelta(days=10),
     max_active_runs = 1,
     catchup = False,
