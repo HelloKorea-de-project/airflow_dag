@@ -11,13 +11,13 @@ import requests, logging, json, psycopg2
 
 default_args = {
     'owner' : "yjshin",
+    'start_date' : datetime(2024,7,28,15,0),
     'retries' : 1,
     'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(
     dag_id = "airport_information_v1",
-    start_date = datetime(2024,7,28,15,0),
     schedule = "@once",
     max_active_runs = 1,
     default_args=default_args,
