@@ -445,7 +445,7 @@ dag = DAG(
     'load_kopis_to_raw',
     default_args=default_args,
     description='A DAG to update event list data every day and save it to S3 raw bucket',
-    schedule_interval='@daily',
+    schedule_interval='0 4 * * *',
     start_date=datetime(2024, 7, 24),
     catchup=False,
 )
