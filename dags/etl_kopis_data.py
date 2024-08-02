@@ -724,7 +724,7 @@ dag = DAG(
     'etl_kopis_data',
     default_args=default_args,
     description='A DAG to update event list data every day and save it to S3, Redshift, RDS',
-    schedule_interval='@once',
+    schedule_interval='@once', # triggered by load kopis to raw dag every day
     start_date=datetime(2024, 7, 24),
     catchup=False,
 )
