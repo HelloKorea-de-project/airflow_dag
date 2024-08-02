@@ -3,6 +3,7 @@ from airflow.models import Variable
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from sqlalchemy import create_engine
+from plugins import slack
 
 from datetime import datetime
 
@@ -12,6 +13,7 @@ default_args = {
     'owner' : "yjshin",
     'start_date' : datetime(2024,7,28,15,0),
     'retries' : 1,
+    'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(

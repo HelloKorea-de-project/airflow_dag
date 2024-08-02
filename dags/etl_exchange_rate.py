@@ -5,6 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.redshift_sql import RedshiftSQLHook
+from plugins import slack
 import requests
 import pandas as pd
 import pyarrow.parquet as pq
@@ -239,13 +240,14 @@ default_args = {
     'start_date': datetime(2024, 7, 25),
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
+    'on_failure_callback': slack.on_failure_callback
 }
 
 dag = DAG(
     'exchange_rate_etl',
     default_args=default_args,
     description='ETL process for Korea Exim exchange rate',
-    schedule_interval='0 13 * * 1-5',
+    schedule_interval='0 4 * * 1-5',
     catchup=False,
     tags=['prod']
 )

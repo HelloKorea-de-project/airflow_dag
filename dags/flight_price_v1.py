@@ -11,9 +11,15 @@ import requests, logging, json, psycopg2, asyncio, time
 import pandas as pd
 from io import BytesIO, StringIO
 
+from plugins import slack
+
+
 default_args = {
         'owner':'yjshin',
         'start_date' : datetime(2024,7,29,5,30)
+        'retries':1,
+        'retry_delay': timedelta(minutes=3),
+        'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(

@@ -3,6 +3,7 @@ from airflow.models import Variable
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from sqlalchemy import create_engine
+from plugins import slack
 
 from datetime import datetime, timedelta
 
@@ -15,7 +16,8 @@ default_args = {
         'owner' : "yjshin",
         'start_date' : datetime(2024,7,28,5,0),
         'retries':1,
-        'retry_delay': timedelta(minutes=3)
+        'retry_delay': timedelta(minutes=3),
+        'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(
