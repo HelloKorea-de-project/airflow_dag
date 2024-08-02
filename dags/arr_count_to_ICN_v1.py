@@ -19,8 +19,8 @@ default_args = {
 
 @dag(
     dag_id = "arr_count_to_ICN_v1",
-    start_date = datetime(2024,7,28,16,0),
-    schedule_interval = timedelta(days=10),
+    start_date = datetime(2024,7,28,4,0),
+    schedule = timedelta(days=10),
     max_active_runs = 1,
     catchup = False,
     default_args=default_args,

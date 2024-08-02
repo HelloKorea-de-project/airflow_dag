@@ -18,7 +18,7 @@ default_args = {
 
 @dag(
     dag_id = 'service_airport_ICN_v1',
-    start_date = datetime(2024,7,28,15,0),
+    start_date = datetime(2024,7,28,3,30),
     schedule = timedelta(days=10),
     max_active_runs = 1,
     catchup = False,
