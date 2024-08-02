@@ -247,7 +247,7 @@ dag = DAG(
     'exchange_rate_etl',
     default_args=default_args,
     description='ETL process for Korea Exim exchange rate',
-    schedule_interval='0 13 * * 1-5',
+    schedule_interval='0 4 * * 1-5',
     catchup=False,
     tags=['prod']
 )
