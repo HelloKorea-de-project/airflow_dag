@@ -7,7 +7,7 @@ from apify_client import ApifyClient
 
 from datetime import datetime, timedelta
 
-import requests, logging, json, psycopg2, asyncio, time
+import requests, logging, json, psycopg2, asyncio, aioboto3, time
 import pandas as pd
 from io import BytesIO, StringIO
 
@@ -16,7 +16,7 @@ from plugins import slack
 
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,29,5,30)
+        'start_date' : datetime(2024,7,29,5,30),
         'retries':1,
         'retry_delay': timedelta(minutes=3),
         'on_failure_callback': slack.on_failure_callback
@@ -149,17 +149,39 @@ def dag():
         logging.info(f"loaded raw layer")
         return dataset_list
 
-                
-    async def transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
+    async def upload_to_s3(semaphore, s3_client, s3_key_raw, results):
+        # List to parquet
+        col = ['id', 'depAirportCode', 'depCountryCode', 'currencyCode', 'arrAirportCode', 'carrierName', 'depTime', 'arrTime', 'price', 'url', 'extractedDate', 'isExpired']
+        df = pd.DataFrame(data=results, columns=col)
+            
+        parquet_buffer = BytesIO()
+        df.to_parquet(parquet_buffer, index=False, engine='pyarrow', use_deprecated_int96_timestamps=True)
+        parquet_buffer.seek(0)
+            
+        s3_key_transformed = s3_key_raw[:-4] + 'parquet'
+        s3_bucket_transformed = 'hellokorea-stage-layer'
+        
+        async with semaphore:
+            await s3_client.put_object(
+                Bucket = s3_bucket_transformed,
+                Key = s3_key_transformed,
+                Body = parquet_buffer.getvalue()
+            )
+        print(f"{s3_key_raw} ended")
+           
+    async def transform(semaphore, s3_client, s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
         """
         extract data from raw layer
         to store in the stage layer after preprocessing
         """
-        s3_hook = S3Hook(aws_conn_id="s3_conn")
-        
-        file_content = s3_hook.read_key(key=s3_key_raw, bucket_name='hellokorea-raw-layer')
-        df = pd.read_json(StringIO(file_content))
+        response = await s3_client.get_object(
+            Bucket='hellokorea-raw-layer',
+            Key=s3_key_raw
+        )
+        file_content = await response['Body'].read()
+        df = pd.read_json(StringIO(file_content.decode('utf-8')))
 
+        # preprocessing
         if not df.empty:
             df = pd.json_normalize(df.to_dict(orient='records'))
 
@@ -167,7 +189,6 @@ def dag():
             results = []
 
             print(len(df["id"]), len(df["pricing_options"]))
-            # Preprocess (extract departure airport, arrival airport, airline, departure time, price, URL, update date)
             for idx, (id, price) in enumerate(zip(df["id"], df["pricing_options"])):
                 tmp = list(map(str, id.split('-')))
                 depTime = datetime.strptime(f"20{tmp[1][:2]}-{tmp[1][2:4]}-{tmp[1][4:6]} {tmp[1][6:8]}:{tmp[1][8:10]}", "%Y-%m-%d %H:%M")
@@ -180,33 +201,29 @@ def dag():
                 isExpired = False
 
                 results.append([id, depAirportCode, depCountryCode, currencyCode, arrAirportCode, carrierName, depTime, arrTime, cheapest_price, url, extractedDate, isExpired])
-
-            # List to parquet
-            col = ['id', 'depAirportCode', 'depCountryCode', 'currencyCode', 'arrAirportCode', 'carrierName', 'depTime', 'arrTime', 'price', 'url', 'extractedDate', 'isExpired']
-            df = pd.DataFrame(data=results, columns=col)
-                
-            parquet_buffer = BytesIO()
-            df.to_parquet(parquet_buffer, index=False, engine='pyarrow', use_deprecated_int96_timestamps=True)
-            parquet_buffer.seek(0)
-                
-            s3_key_transformed = s3_key_raw[:-4] + 'parquet'
-            s3_bucket_transformed = 'hellokorea-stage-layer'
-            s3_hook.load_bytes(
-                bytes_data = parquet_buffer.getvalue(),
-                key = s3_key_transformed,
-                bucket_name = s3_bucket_transformed,
-                replace=True
-            )
+            print(f"{s3_key_raw} started")
+            await upload_to_s3(semaphore, s3_client, s3_key_raw, results)
         
-    async def extract_from_s3(dataset_list, current_date):
-        tasks = []
+    async def extract_from_s3(semaphore, dataset_list, current_date):
+        s3_hook = S3Hook(aws_conn_id="s3_conn")
+        aws_access_key_id = s3_hook.get_connection(conn_id="s3_conn").login
+        aws_secret_access_key = s3_hook.get_connection(conn_id="s3_conn").password
+        region_name = "ap-northeast-2"
         
-        for depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId in dataset_list:
-            s3_key_raw = f"source/flight/{depAirportCode}_to_ICN_{nowSearchDate}_updated_{current_date}.json"
-            task = asyncio.create_task(transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date))
-            tasks.append(task)
-                
-        await asyncio.gather(*tasks)
+        session = aioboto3.Session()
+        async with session.client(
+            's3',
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name
+        ) as s3_client:
+            tasks = []
+            for depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId in dataset_list:
+                s3_key_raw = f"source/flight/{depAirportCode}_to_ICN_{nowSearchDate}_updated_{current_date}.json"
+                task = asyncio.create_task(transform(semaphore, s3_client, s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date))
+                tasks.append(task)
+                    
+            await asyncio.gather(*tasks)
         logging.info("transformed done")
 
     @task
@@ -215,8 +232,8 @@ def dag():
         Get raw data from the raw layer, preprocess it,
         and load it into the stage layer
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(extract_from_s3(dataset_list, current_date))
+        semaphore = asyncio.Semaphore(20)
+        asyncio.run(extract_from_s3(semaphore, dataset_list, current_date))
         
         return dataset_list
             
@@ -402,5 +419,4 @@ def dag():
     update_rds_task = update_rds(unload_s3_task)
     
     departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
-
 dag=dag()
