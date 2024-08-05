@@ -15,9 +15,10 @@ import logging
 
 
 # Configuration
-RAW_LAYER_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/{year}/{month}/{day}/ExchangeRate_{timestamp}.csv'
-STAGE_LAYER_PROD_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/prod_db/{year}-{month}-{day}/ExchangeRate_{timestamp}.parquet'
-STAGE_LAYER_DW_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/dw_db/{year}-{month}-{day}/ExchangeRate_{timestamp}.parquet'
+TABLE_NAME = 'ExchangeRate'
+RAW_LAYER_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/{year}/{month}/{day}/{table_name}_{timestamp}.csv'
+STAGE_LAYER_PROD_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/prod_db/{year}-{month}-{day}/{table_name}_{timestamp}.parquet'
+STAGE_LAYER_DW_PATH_TEMPLATE = 'source/koreaexim/exchange_rate/dw_db/{year}-{month}-{day}/{table_name}_{timestamp}.parquet'
 
 S3_CONN_ID = 's3_conn'
 POSTGRES_CONN_ID = 'postgres_conn'
@@ -39,7 +40,7 @@ def fetch_and_save_csv(logical_date, **kwargs):
     """
     date_str = logical_date.strftime('%Y%m%d')
     API_URL_TEMPLATE = "https://www.koreaexim.go.kr/site/program/financial/exchangeJSON?authkey={api_key}&searchdate={date}&data=AP01"
-    api_url = API_URL_TEMPLATE.format(api_key=Variable.get("koreaexim_exchangerate_secret_key"), date=date_str)
+    api_url = API_URL_TEMPLATE.format(api_key=Variable.get(f"koreaexim_{TABLE_NAME.lower()}_secret_key"), date=date_str)
 
     response = requests.get(api_url, verify=False)
     data = response.json()
@@ -148,14 +149,14 @@ def update_rds(logical_date, **kwargs):
     cursor = conn.cursor()
 
     # Clear the table
-    cursor.execute("TRUNCATE TABLE airline_exchangerate;")
+    cursor.execute(f"TRUNCATE TABLE airline_{TABLE_NAME.lower()};")
 
     # Insert new data
     columns = ', '.join([f'"{col}"' for col in prod_columns.values()])
     placeholders = ', '.join(['%s'] * len(prod_columns))
     for index, row in df.iterrows():
         cursor.execute(f"""
-            INSERT INTO airline_exchangerate ({columns})
+            INSERT INTO airline_{TABLE_NAME.lower()} ({columns})
             VALUES ({placeholders});
         """, [row[col_name] for col_name in prod_columns.values()])
 
@@ -181,8 +182,8 @@ def update_redshift(logical_date, **kwargs):
     conn = redshift_hook.get_conn()
     cursor = conn.cursor()
 
-    create_table_query = """
-    CREATE TABLE IF NOT EXISTS raw_data.ExchangeRate (
+    create_table_query = f"""
+    CREATE TABLE IF NOT EXISTS raw_data.{TABLE_NAME} (
         result BIGINT,
         cur_unit VARCHAR(10),
         ttb DOUBLE PRECISION,
@@ -193,7 +194,8 @@ def update_redshift(logical_date, **kwargs):
         ten_dd_efee_r BIGINT,
         kftc_bkpr BIGINT,
         kftc_deal_bas_r DOUBLE PRECISION,
-        cur_nm VARCHAR(50)
+        cur_nm VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """
     cursor.execute(create_table_query)
@@ -201,7 +203,7 @@ def update_redshift(logical_date, **kwargs):
     s3_path = f's3://{Variable.get("S3_STAGE_BUCKET")}/{stage_path}'
     iam_role = Variable.get("hellokorea_redshift_s3_access_role")
     query = f"""
-        COPY raw_data.ExchangeRate
+        COPY raw_data.{TABLE_NAME}
         FROM '{s3_path}'
         IAM_ROLE '{iam_role}'
         FORMAT AS PARQUET;
