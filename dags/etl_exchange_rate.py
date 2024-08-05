@@ -86,10 +86,11 @@ def convert_csv_to_parquet(logical_date, **kwargs):
     df['ten_dd_efee_r'] = df['ten_dd_efee_r'].replace(',', '', regex=True).astype(int)
     df['kftc_bkpr'] = df['kftc_bkpr'].replace(',', '', regex=True).astype(int)
     df['kftc_deal_bas_r'] = df['kftc_deal_bas_r'].replace(',', '', regex=True).astype(float)
+    df['created_at'] = pd.to_datetime(datetime.now())
 
     table = pa.Table.from_pandas(df)
     buffer = BytesIO()
-    pq.write_table(table, buffer)
+    pq.write_table(table, buffer, use_deprecated_int96_timestamps=True)
     s3_hook.load_bytes(buffer.getvalue(), stage_path, bucket_name=Variable.get("S3_STAGE_BUCKET"), replace=True)
 
 
@@ -232,7 +233,8 @@ def generate_path(template, logical_date):
         year=logical_date.year,
         month=str(logical_date.month).zfill(2),
         day=str(logical_date.day).zfill(2),
-        timestamp=logical_date.strftime('%Y%m%dT%H%M%S')
+        timestamp=logical_date.strftime('%Y%m%dT%H%M%S'),
+        table_name=TABLE_NAME
     )
 
 
