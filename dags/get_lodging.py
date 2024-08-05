@@ -16,6 +16,7 @@ import pandas as pd
 import logging
 import requests
 import json
+import io
 
 
 # Airflow Connection에 등록된 Redshift 연결 정보를 가져옴
@@ -92,15 +93,15 @@ def call_api():
         lodgings1 = response.json()
         lodgings.extend(lodgings1['LOCALDATA_031103']['row'])
     
-    # s3 클라이언트를 생성 -> S3에 저장
-    s3 = s3_connection()
+    # S3에 저장
+    s3_hook = S3Hook(aws_conn_id="s3_conn")
     bucket_name = 'hellokorea-raw-layer'
-    file_name = 'lodging.json'
-
-    with open(file_name, 'w') as f:
-        json.dump(lodgings, f)
-
-    s3.upload_file(file_name, bucket_name, 'source/lodging/lodging.json')
+    s3_hook.load_string(
+                string_data = json.dumps(lodgings),
+                key = 'source/lodging/lodging.json',
+                bucket_name = bucket_name,
+                replace = True
+            )
     logging.info("s3 upload done")
 
 
@@ -174,12 +175,13 @@ def parsing_data_to_stage(json_records):
     records = json.loads(json_records)
     df = pd.DataFrame(records, columns=['MGTNO', 'RDNWHLADDR', 'SIGUNGUCODE', 'BPLCNM', 'UPTAENM', 'lo', 'la'])
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
-    parquet_file = 'lodging.parquet'
-    pq.write_table(table, parquet_file)
+
+    buffer = io.BytesIO()   # 메모리에서 Parquet 파일을 생성하기 위해 BytesIO 객체 사용
+    pq.write_table(table, buffer)   # Arrow 테이블을 BytesIO 객체에 Parquet 파일로 작성 
+    buffer.seek(0)  # BytesIO 버퍼의 포인터를 처음으로 되돌리기
     
-    s3_client = s3_connection()
-    with open(parquet_file, 'rb') as f:
-        s3_client.upload_fileobj(f, 'hellokorea-stage-layer', 'source/lodging/lodging.parquet')
+    s3_client  = s3_connection()
+    s3_client.upload_fileobj(buffer, 'hellokorea-stage-layer', 'source/lodging/lodging.parquet') # BytesIO 버퍼의 내용을 S3에 업로드
     logging.info("lodging.parquet to S3 stage layer")
 
 
