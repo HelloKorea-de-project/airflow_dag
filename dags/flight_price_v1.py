@@ -35,7 +35,7 @@ default_args = {
 }
 
 @dag(
-    dag_id='flight_price_1',
+    dag_id='flight_price_v1',
     schedule = timedelta(days=3),
     max_active_runs = 1,
     default_args=default_args,
