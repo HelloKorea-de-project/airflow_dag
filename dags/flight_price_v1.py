@@ -14,16 +14,28 @@ from io import BytesIO, StringIO
 from plugins import slack
 
 
+def clear_failed_task(context):
+    logging.info("call clear_failed_task")
+    dag = context.get('dag')
+    if dag:
+        dag.clear(
+            start_date=dag.start_date,
+            end_date=dag.end_date,
+            only_failed=True,
+        )
+        logging.info("clear done")
+
+
 default_args = {
         'owner':'yjshin',
         'start_date' : datetime(2024,7,29,5,30),
         'retries':1,
         'retry_delay': timedelta(minutes=3),
-        'on_failure_callback': slack.on_failure_callback
+        'on_failure_callback': clear_failed_task,
 }
 
 @dag(
-    dag_id='flight_price_v1',
+    dag_id='flight_price_1',
     schedule = timedelta(days=3),
     max_active_runs = 1,
     default_args=default_args,
@@ -94,7 +106,7 @@ def dag():
             depAirportCode = airport
             depCountryCode = country
             currencyCode = currency
-            for days in range(1, 31):
+            for days in range(4, 34):
                 nowSearchDate = search_date[f'date_{days}']
                 print(depAirportCode, nowSearchDate)
                 run_input = {
@@ -343,6 +355,7 @@ def dag():
                     WHERE isExpired = False')
                 TO '{s3_path}'
                 IAM_ROLE '{iam_role}'
+                HEADER
                 PARALLEL OFF
                 CSV;
             """
@@ -385,7 +398,7 @@ def dag():
                 SELECT aws_s3.table_import_from_s3(
                     '{table}', 
                     '"id", "depAirportCode", "depCountryCode", "currencyCode", "arrAirportCode", "carrierName", "depTime", "arrTime", "price", "url"',
-                    '(format csv)',
+                    '(format csv, header true)',
                     '{s3_bucket}',
                     '{s3_key_to_prod}000',
                     'ap-northeast-2'
@@ -405,7 +418,7 @@ def dag():
     
                 
     current_date = '{{ macros.ds_add(ds, 3) }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
     
     departures = get_high_frequency_airports()
     api_call_task = api_call(departures, search_date)
