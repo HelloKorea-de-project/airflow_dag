@@ -94,7 +94,7 @@ def dag():
             depAirportCode = airport
             depCountryCode = country
             currencyCode = currency
-            for days in range(1, 31):
+            for days in range(4, 34):
                 nowSearchDate = search_date[f'date_{days}']
                 print(depAirportCode, nowSearchDate)
                 run_input = {
@@ -343,6 +343,7 @@ def dag():
                     WHERE isExpired = False')
                 TO '{s3_path}'
                 IAM_ROLE '{iam_role}'
+                HEADER
                 PARALLEL OFF
                 CSV;
             """
@@ -405,7 +406,7 @@ def dag():
     
                 
     current_date = '{{ macros.ds_add(ds, 3) }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)}
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
     
     departures = get_high_frequency_airports()
     api_call_task = api_call(departures, search_date)
