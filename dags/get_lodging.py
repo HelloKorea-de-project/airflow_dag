@@ -203,7 +203,7 @@ def load_to_redshift(schema, table):
             bplcnm  VARCHAR(100),
             uptaenm VARCHAR(30),
             lo FLOAT,
-            la FLOAT
+            la FLOAT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );""")
         cursor.execute(f"""TRUNCATE TABLE {schema}.{table};""")
