@@ -14,12 +14,24 @@ from io import BytesIO, StringIO
 from plugins import slack
 
 
+def clear_failed_task(context):
+    logging.info("call clear_failed_task")
+    dag = context.get('dag')
+    if dag:
+        dag.clear(
+            start_date=dag.start_date,
+            end_date=dag.end_date,
+            only_failed=True,
+        )
+        logging.info("clear done")
+
+
 default_args = {
         'owner':'yjshin',
         'start_date' : datetime(2024,7,29,5,30),
         'retries':1,
         'retry_delay': timedelta(minutes=3),
-        'on_failure_callback': slack.on_failure_callback
+        'on_failure_callback': clear_failed_task,
 }
 
 @dag(
@@ -386,7 +398,7 @@ def dag():
                 SELECT aws_s3.table_import_from_s3(
                     '{table}', 
                     '"id", "depAirportCode", "depCountryCode", "currencyCode", "arrAirportCode", "carrierName", "depTime", "arrTime", "price", "url"',
-                    '(format csv)',
+                    '(format csv, header true)',
                     '{s3_bucket}',
                     '{s3_key_to_prod}000',
                     'ap-northeast-2'
