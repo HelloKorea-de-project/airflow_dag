@@ -118,24 +118,24 @@ def get_and_parsing():
 
     records = []
     for lodging in lodgings:
-        TRDSTATEGBN = lodging["TRDSTATEGBN"]    # 영업상태코드
-        if TRDSTATEGBN in ['03']:
+        trdstategbn = lodging["TRDSTATEGBN"]    # 영업상태코드
+        if trdstategbn in ['03']:
             continue
-        UPTAENM = lodging["UPTAENM"]  # 업태구분명
-        if "호텔" not in UPTAENM:
+        uptaenm = lodging["UPTAENM"]  # 업태구분명
+        if "호텔" not in uptaenm:
             continue
-        MGTNO = lodging["MGTNO"]      # 관리번호
-        RDNWHLADDR = lodging["RDNWHLADDR"]       # 도로명주소
-        match = RDNWHLADDR.split()
-        SIGUNGUCODE = int(areas_dic.get(match[1]))   # 시군구 코드        
-        BPLCNM1 = lodging["BPLCNM"]     # 사업장명
-        BPLCNM = BPLCNM1.replace("'", "")
+        mgtno = lodging["MGTNO"]      # 관리번호
+        rdnwhladdr = lodging["RDNWHLADDR"]       # 도로명주소
+        match = rdnwhladdr.split()
+        addCode = int(areas_dic.get(match[1]))   # 시군구 코드        
+        bplcnm1 = lodging["BPLCNM"]     # 사업장명
+        bplcnm = bplcnm1.replace("'", "")
         lo1 = lodging["X"] or '1297744.1643021935'
         lo2 = lo1.replace(" ", "")  # x좌표정보 (경도)
         la1 = lodging["Y"] or '485229.0867525645'
         la2 = la1.replace(" ", "")  # y좌표정보 (위도)
         lo, la = convert_tm_to_wgs84(lo2, la2)  #중부원점TM (EPSG:2097) 좌표를 GRS80 (WGS84) 좌표계로 변환
-        records.append([MGTNO, RDNWHLADDR, SIGUNGUCODE, BPLCNM, UPTAENM, lo, la])
+        records.append([mgtno, rdnwhladdr, addCode, bplcnm, uptaenm, lo, la])
     logging.info("parsing done")
     json_records = json.dumps(records, ensure_ascii=False)
     return json_records
@@ -154,10 +154,10 @@ def parsing_data_to_RDS(json_records, table):
         cursor.execute("BEGIN;")
         cursor.execute(f"""TRUNCATE TABLE {table};""")
         for r in records:
-            sql = f"""INSERT INTO {table} ("mgtno" , "rdnwhladdr", "bplcnm", "uptaenm", "addCode", "lo", "la")
+            sql = f"""INSERT INTO {table} ("mgtno" , "rdnwhladdr", "addCode", "bplcnm", "uptaenm", "lo", "la")
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
-            cursor.execute(sql, (r[0], r[1], r[3], r[4], r[2], r[5], r[6]))
+            cursor.execute(sql, (r[0], r[1], r[2], r[3], r[4], r[5], r[6]))
         cursor.execute("COMMIT;")
         print(f'Successfully loaded data from S3 to Redshift table {table}')
     except Exception as e:
@@ -173,7 +173,7 @@ def parsing_data_to_RDS(json_records, table):
 @task
 def parsing_data_to_stage(json_records):
     records = json.loads(json_records)
-    df = pd.DataFrame(records, columns=['MGTNO', 'RDNWHLADDR', 'SIGUNGUCODE', 'BPLCNM', 'UPTAENM', 'lo', 'la'])
+    df = pd.DataFrame(records, columns=['mgtno', 'rdnwhladdr', 'addCode', 'bplcnm', 'uptaenm', 'lo', 'la'])
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
 
     buffer = io.BytesIO()   # 메모리에서 Parquet 파일을 생성하기 위해 BytesIO 객체 사용
@@ -196,6 +196,16 @@ def load_to_redshift(schema, table):
     try:
         # FULL REFRESH
         cursor.execute("BEGIN;")
+        cursor.execute(f"""CREATE TABLE IF NOT EXISTS {schema}.{table} (
+            mgtno VARCHAR(30),
+            rdnwhladdr  VARCHAR(150),
+            addCode BIGINT,
+            bplcnm  VARCHAR(100),
+            uptaenm VARCHAR(30),
+            lo FLOAT,
+            la FLOAT
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );""")
         cursor.execute(f"""TRUNCATE TABLE {schema}.{table};""")
         cursor.execute(f"""
             COPY {schema}.{table}
@@ -219,7 +229,7 @@ with DAG(
     start_date = datetime(2024,7,20),
     catchup=False,
     tags=['API'],
-    schedule = '0 0 * * 1' # 월요일 자정에 실행
+    schedule = '0 4 * * 1' # 월요일 실행
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
