@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+    - name: raw_data
+      tables:
+        - name: ex_rate
+          identifier: exchangerate
+          meta:
+            creator: "csh"
+        - name: arr_cnt_icn
+          identifier: arrcounttoicn
+          meta:
+            creator: "syj"
+        - name: st_info
+          identifier: seoul_tour_info
+          meta:
+            creator: "kjy"
+        - name: chp_flight
+          identifier: cheapestflight
+          meta:
+            creator: "syj"
+        - name: serv_air_icn
+          identifier: serviceairporticn
+          meta:
+            creator: "syj"
+        - name: event
+          identifier: event
+          meta:
+            creator: "kjy"

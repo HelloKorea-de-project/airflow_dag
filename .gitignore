@@ -11,3 +11,7 @@
 /dags/stage/__pycache__/
 *.csv
 *.parquet
+
+dbt/hellokorea_dbt/target/
+dbt/hellokorea_dbt/dbt_packages/
+dbt/hellokorea_dbt/logs/
