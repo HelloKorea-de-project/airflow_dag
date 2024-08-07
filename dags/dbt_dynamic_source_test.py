@@ -128,9 +128,9 @@ def create_dynamic_dag(dag_id, external_dag_id, external_task_id, model_name, ex
             task_id='sensing_upstream_model_task',
             external_dag_id=external_dag_id,
             external_task_id=external_task_id,
-            poke_interval=1800,
+            poke_interval=5 * 60,
             execution_delta=execution_delta,
-            timeout=14400,
+            timeout=30 * 60,
             mode='reschedule',
             check_existence=True
         )
