@@ -729,7 +729,7 @@ dag = DAG(
     schedule_interval='@once', # triggered by load kopis to raw dag every day
     start_date=datetime(2024, 7, 24),
     catchup=False,
-    tags=['load-redshift', 'table:event', 'table:event_detail', 'table:performance_facility_detail', 'table:performance_facility_sidogu']
+    tags=['load-redshift', 'table:event', 'table:event_detail', 'table:performance_facility_detail']
 )
 
 

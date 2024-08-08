@@ -17,7 +17,7 @@ from plugins import slack
 logger = logging.getLogger(__name__)
 
 # Constants for DBT configuration
-DBT_PROJECT_NAME = "helloword_dbt"
+DBT_PROJECT_NAME = "hellokorea_dbt"
 DEFAULT_DBT_ROOT_PATH = Path(__file__).parent.parent / "dbt"
 DBT_ROOT_PATH = Path(os.getenv("DBT_ROOT_PATH", DEFAULT_DBT_ROOT_PATH))
 
