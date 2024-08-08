@@ -1,0 +1,13 @@
+/dags/.airflowignore
+.DS_Store
+._.DS_Store
+**/.DS_Store
+**/._.DS_Store
+/logs/
+/dags/dev_dags/
+/docker-compose.yaml
+/dags/__pycache__/
+/dags/raw/__pycache__/
+/dags/stage/__pycache__/
+*.csv
+*.parquet
