@@ -188,6 +188,7 @@ with DAG(
     tags=['API'],
     schedule = '0 4 * * *', #매일 UTC 4시 , KST 13시 시행 (전날 데이터 11시에 업데이트 됨)
     on_failure_callback=slack.on_failure_callback
+
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
