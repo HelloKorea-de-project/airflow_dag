@@ -111,6 +111,9 @@ def extract_dependent_dags():
     available_models = []
 
     models, sources = get_dbt_resources_and_lineage(DBT_ROOT_PATH / DBT_PROJECT_NAME)
+    if models and sources:
+        logger.error("No models found in DBT.")
+        return
 
     for dag_id, dag in dag_bag.dags.items():
         if 'load-redshift' in dag.tags:
