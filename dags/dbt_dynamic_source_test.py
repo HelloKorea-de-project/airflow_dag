@@ -1,6 +1,7 @@
 import logging
 import os
 import re
+import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from airflow import DAG
@@ -28,6 +29,75 @@ profile_config = ProfileConfig(
     profiles_yml_filepath=DBT_ROOT_PATH / f"{DBT_PROJECT_NAME}/profiles.yml"
 )
 
+
+def get_dbt_resources_and_lineage(project_dir):
+    '''
+    Function to process the dbt ls output and extract model and source information
+    '''
+    
+    # Path to the manifest.json file which contains dbt resource information
+    manifest_path = os.path.join(project_dir, "target", "manifest.json")
+
+    if not os.path.exists(manifest_path):
+        logger.debug(f"Manifest file not found at {manifest_path}")
+        return {}, {}, {}
+
+    with open(manifest_path, 'r') as f:
+        manifest = json.load(f)
+
+    # Extract models
+    models = {
+        node['name']: {
+            'name': node['name'],
+            'description': node.get('description', ''),
+            'columns': node.get('columns', {}),
+            'depends_on': node['depends_on']['nodes']
+        }
+        for node in manifest['nodes'].values()
+        if node['resource_type'] == 'model'
+    }
+
+    # Extract sources and create a mapping of source alias to identifier
+    sources = {
+        source['identifier']: {
+            'unique_id': source['unique_id'],
+            'database': source['database'],
+            'schema': source['schema'],
+            'name': source['name'],
+            'resource_type': source['resource_type'],
+            'package_name': source['package_name'],
+            'source_name': source['source_name'],
+            'identifier': source['identifier'],
+        }
+        for source in manifest['sources'].values()
+    }
+
+    return models, sources
+
+
+def get_model_by_source_identifier(identifier, models, sources):
+    '''
+    Function to check if a source identifier is registered in dbt and get the corresponding model information
+    '''
+
+    source = sources.get(identifier)
+    if not source:
+        return None, f"Source identifier '{identifier}' is not registered."
+
+    # Find the model whose depends_on contains the source identifier
+    matching_models = [
+        model for model in models.values()
+        if any(
+            source['unique_id'] in dependency
+            for dependency in model['depends_on']
+        )
+    ]
+    if not matching_models:
+        return None, f"No model found for source identifier '{identifier}' with source name '{source['name']}'."
+
+    # Return the first matching model (assuming there is only one match)
+    return matching_models[0], None
+
 def extract_dependent_dags():
     """
     Extract model names and the last task ID from DAG descriptions under the 'load_target_models' key.
@@ -36,41 +106,47 @@ def extract_dependent_dags():
     logger.info("Extracting dependent DAGs...")
 
     dag_bag = DagBag(include_examples=False)
-    models = []
+    
+    dag_models = []
+    available_models = []
 
-    # Regular expression to match the dependent_models pattern
-    pattern = re.compile(r"load_target_models\s*:\s*\[\s*(.*?)\s*\]")
+    models, sources = get_dbt_resources_and_lineage(DBT_ROOT_PATH / DBT_PROJECT_NAME)
 
     for dag_id, dag in dag_bag.dags.items():
-        if ('load-redshift' in dag.tags) and dag.description:
+        if 'load-redshift' in dag.tags:
+            # Process the DAG if it has the 'load-redshift' tag
             logger.debug(f"Processing DAG: {dag_id}")
+            for tag in dag.tags:
+                if tag.startswith('table:'):
+                    # Extract the table name from the tag and convert it to lowercase
+                    table_name = tag.split(':')[1].lower()
 
-            # Search for the pattern in the DAG's description
-            match = pattern.search(dag.description)
-            logger.debug(f"Match found in DAG {dag_id}: {match.group(0)}")
-            if match:
-                # Extract and clean the model names
-                model_names = [name.strip().strip("'\"") for name in match.group(1).split(',') if name.strip()]
+                    model_info, error = get_model_by_source_identifier(table_name, models, sources)
+                    if error:
+                        logger.debug(error)
+                    else:
+                        dag_models.append(model_info)
+                        logger.debug(f"Model Information for Source Identifier '{table_name}': {model_info}")
 
-                # Get the last task ID
-                if dag.tasks:
-                    last_task_id = dag.tasks[-1].task_id
-                else:
-                    continue
+            # Get the last task ID
+            if dag.tasks:
+                last_task_id = dag.tasks[-1].task_id
+            else:
+                continue
 
-                # Calculate execution_delta based on schedule_interval
-                if dag.schedule_interval is not None:
-                    execution_delta = calculate_execution_delta(dag.schedule_interval)
-                else:
-                    execution_delta = timedelta(days=1)  # Default to 1 day if schedule_interval is not set
+            # Calculate execution_delta based on schedule_interval
+            if dag.schedule_interval is not None:
+                execution_delta = calculate_execution_delta(dag.schedule_interval)
+            else:
+                execution_delta = timedelta(days=1)  # Default to 1 day if schedule_interval is not set
 
-                for model_name in model_names:
-                    models.append((dag_id, model_name.strip(), last_task_id, execution_delta))
+            for model in dag_models:
+                available_models.append((dag_id, model['name'].strip(), last_task_id, execution_delta))
 
-    if not models:
-        raise ValueError("No models found in DAG descriptions.")
+    if not available_models:
+        raise ValueError("No models found in DAG tags.")
 
-    return models
+    return available_models
 
 
 def calculate_execution_delta(schedule_interval):
