@@ -1,0 +1,197 @@
+version: 2
+
+models:
+  - name: fresh_ex_rate
+    columns:
+      - name: created_at
+        tests:
+          - not_null
+      - name: cur_unit
+        tests:
+          - check_iso_4217
+          - not_null
+      - name: ttb
+        tests:
+          - check_abs_amount
+      - name: tts
+        tests:
+          - check_abs_amount
+      - name: deal_bas_r
+        tests:
+          - check_abs_amount
+      - name: bkpr
+        tests:
+          - check_abs_amount
+      - name: kftc_bkpr
+        tests:
+          - check_abs_amount
+    tests:
+      - check_uniq_comb_key:
+          combination:
+            - created_at
+            - cur_unit
+  - name: fresh_arr_cnt_icn
+    columns:
+      - name: airportcode
+        tests:
+          - unique
+          - not_null
+          - check_iata
+          - relationships:
+              to: ref('fresh_serv_air_icn')
+              field: airportcode
+              severity: warn
+      - name: count
+        tests:
+          - check_abs_amount
+  - name: fresh_st_info
+    columns:
+      - name: contentid
+        tests:
+          - unique
+          - not_null
+      - name: cat1
+        tests:
+          - check_consist_len:
+              len: 3
+      - name: cat2
+        tests:
+          - check_consist_len:
+              len: 5
+          - check_contain:
+              sub_str: cat1
+              start_pos: 1
+      - name: cat3
+        tests:
+          - check_consist_len:
+              len: 9
+          - check_contain:
+              sub_str: cat2
+              start_pos: 1
+      - name: sigungucode
+        tests:
+          - check_range_value:
+              min_num: 1
+              max_num: 25
+    tests:
+      - check_gcs_kor:
+          lat_col_name: mapy
+          lon_col_name: mapx
+  - name: fresh_chp_flight
+    columns:
+      - name: id
+        tests:
+          - unique
+          - not_null
+      - name: depairportcode
+        tests:
+          - check_iata
+          - relationships:
+              to: ref('fresh_serv_air_icn')
+              field: airportcode
+              severity: warn
+      - name: arrairportcode
+        tests:
+          - check_iata
+      - name: depcountrycode
+        tests:
+          - check_iso_3166_1_alpha_2
+          - relationships:
+              to: ref('fresh_serv_air_icn')
+              field: countrycode # not unique
+              severity: warn
+      - name: currencycode
+        tests:
+          - check_iso_4217
+          - relationships:
+              to: ref('fresh_ex_rate')
+              field: cur_unit
+              severity: warn
+      - name: price
+        tests:
+          - check_abs_amount
+      - name: extracteddate
+        tests:
+          - check_date
+  - name: fresh_serv_air_icn
+    columns:
+      - name: airportcode
+        tests:
+          - unique
+          - not_null
+          - check_iata
+      - name: countrycode
+        tests:
+          - check_iso_3166_1_alpha_2
+      - name: currencycode
+        tests:
+          - check_iso_4217
+          - relationships:
+              to: ref('fresh_ex_rate')
+              field: cur_unit
+              severity: warn
+      - name: extracteddate
+        tests:
+          - check_date
+  - name: fresh_event
+    columns:
+      - name: festival
+        tests:
+          - accepted_values:
+              values: ["Y", "N"]
+  - name: fresh_event_detail
+    columns:
+      - name: mt20id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+            to: ref('fresh_event')
+            field: mt20id
+            severity: warn
+      - name: mt10id
+        tests:
+          - not_null
+          - relationships:
+              to: source('raw_data', 'perf_facil_sidogu')
+              field: mt10id
+              severity: warn
+      - name: openrun
+        tests:
+          - accepted_values:
+              values: ["Y", "N"]
+      - name: prfstate
+        tests:
+          - accepted_values:
+              values: ["공연중", "공연예정"]
+  - name: fresh_perf_facil_detail
+    columns:
+      - name: mt10id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: source('raw_data', 'perf_facil_sidogu')
+              field: mt10id
+              severity: warn
+      - name: mt13cnt
+        tests:
+          - check_abs_amount
+      - name: seatscale
+        tests:
+          - check_abs_amount
+    tests:
+      - check_gcs_kor:
+          lat_col_name: la
+          lon_col_name: lo
+  - name: fresh_lodging
+    columns:
+      - name: sigungucode
+        tests:
+          - check_range_value:
+              min_num: 1
+              max_num: 25
+    tests:
+      - check_gcs_kor:
+          lat_col_name: la
+          lon_col_name: lo

@@ -32,3 +32,27 @@ def send_message_to_a_slack_channel(message, emoji):
     data = { "username": "Data GOD", "text": message, "icon_emoji": emoji }
     r = requests.post(url, json=data, headers=headers)
     return r
+
+def warning_data_quality_callback(context):
+    tests = context.get("test_names")
+    results = context.get("test_results")
+
+    warning_msgs = ""
+    for test, result in zip(tests, results):
+        warning_msg = f"""
+        *Test*: {test}
+        *Result*: {result}
+        """
+        warning_msgs += warning_msg
+
+    if warning_msgs:
+        slack_msg = f"""
+        :large_yellow_circle: Airflow-DBT task with WARN.
+        *Task*: {context.get('task_instance').task_id}
+        *Dag*: {context.get('task_instance').dag_id}
+        *Execution Time*: {context.get('execution_date')}
+        *Log Url*: {context.get('task_instance').log_url}
+        {warning_msgs}
+        """
+
+        send_message_to_a_slack_channel(slack_msg, ":scream:")

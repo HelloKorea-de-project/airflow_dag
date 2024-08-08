@@ -27,7 +27,7 @@ default_args = {
     max_active_runs = 1,
     catchup = False,
     default_args=default_args,
-    tags=['yjshin','service_airport'])
+    tags=['yjshin','service_airport', 'load-redshift', 'table:serviceairporticn'])
 
 def dag():
     def get_redshift_connection():
