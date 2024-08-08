@@ -40,7 +40,7 @@ def get_dbt_resources_and_lineage(project_dir):
 
     if not os.path.exists(manifest_path):
         logger.debug(f"Manifest file not found at {manifest_path}")
-        return {}, {}
+        raise ValueError(f"Manifest file not found at {manifest_path}")
 
     with open(manifest_path, 'r') as f:
         manifest = json.load(f)
