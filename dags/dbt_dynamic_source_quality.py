@@ -120,7 +120,6 @@ def extract_dependent_dags():
             # Process the DAG if it has the 'load-redshift' tag
             for tag in dag.tags:
                 if tag.startswith('table:'):
-                    # Extract the table name from the tag and convert it to lowercase
                     table_name = tag.split(':')[1].lower()
 
                     model_info, error = get_model_by_source_identifier(table_name, models, sources)
