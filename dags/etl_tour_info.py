@@ -759,6 +759,7 @@ dag = DAG(
     schedule_interval='0 4 * * *',
     start_date=days_ago(1),
     catchup=False,
+    tags=['load-redshift', 'table:seoul_tour_info']
 )
 
 load_tour_attractions_data_to_raw = PythonOperator(

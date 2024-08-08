@@ -2,7 +2,7 @@ WITH split_ids AS (
 	SELECT
 		id,
 		LENGTH(id) - LENGTH(REPLACE(id, '-', '')) + 1 AS part_count
-		FROM {{ ref('chp_flight') }}
+		FROM {{ ref('fresh_chp_flight') }}
 )
 
 SELECT *

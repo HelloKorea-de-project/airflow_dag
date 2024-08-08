@@ -44,3 +44,7 @@ sources:
             tests:
               - unique
               - not_null
+      - name: lodging
+        identifier: lodging
+        meta:
+          creator: "jdw"

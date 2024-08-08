@@ -184,3 +184,14 @@ models:
       - check_gcs_kor:
           lat_col_name: la
           lon_col_name: lo
+  - name: fresh_lodging
+    columns:
+      - name: sigungucode
+        tests:
+          - check_range_value:
+              min_num: 1
+              max_num: 25
+    tests:
+      - check_gcs_kor:
+          lat_col_name: la
+          lon_col_name: lo

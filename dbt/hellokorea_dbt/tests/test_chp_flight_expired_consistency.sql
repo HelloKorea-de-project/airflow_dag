@@ -2,7 +2,7 @@ WITH consistency_check AS (
 	SELECT 
 		extracteddate, 
 		COUNT(DISTINCT isexpired) AS unique_isexpired_count
-		FROM {{ ref('chp_flight') }}
+		FROM {{ ref('fresh_chp_flight') }}
 		GROUP BY extracteddate
 )
 SELECT COUNT(*)

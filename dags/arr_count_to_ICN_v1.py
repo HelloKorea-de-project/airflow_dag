@@ -26,7 +26,7 @@ default_args = {
     max_active_runs = 1,
     catchup = False,
     default_args=default_args,
-    tags=['yjshin','arr_count_to_ICN']
+    tags=['yjshin','arr_count_to_ICN', 'load-redshift', 'table:arrcounttoicn']
 )
 
 def dag():

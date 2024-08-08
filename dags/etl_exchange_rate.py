@@ -253,7 +253,7 @@ dag = DAG(
     description='ETL process for Korea Exim exchange rate',
     schedule_interval='0 4 * * 1-5',
     catchup=False,
-    tags=['prod']
+    tags=['prod', 'load-redshift', 'table:exchangerate']
 )
 
 fetch_task = PythonOperator(

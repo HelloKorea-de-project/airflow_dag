@@ -40,7 +40,7 @@ default_args = {
     max_active_runs = 1,
     default_args=default_args,
     catchup=False,
-    tags=['yjshin','flight_price'])
+    tags=['yjshin','flight_price', 'load-redshift', 'table:cheapestflight'])
 
 
 def dag():

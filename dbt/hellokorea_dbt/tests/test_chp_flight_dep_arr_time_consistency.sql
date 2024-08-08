@@ -1,4 +1,4 @@
 SELECT 
     id
-FROM {{ ref('chp_flight') }}
+FROM {{ ref('fresh_chp_flight') }}
 WHERE depTime >= arrTime
