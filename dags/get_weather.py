@@ -47,7 +47,7 @@ def get_RDS_connection():
 def call_api():
 
     # API 호출
-    params = {'numOfRows': '380', 'dataType': 'JSON', 'dataCd': 'ASOS', 'dateCd': 'DAY', 'startDt': 20230731, 'endDt': 20240730, 'stnIds': '108'}
+    params = {'numOfRows': '380', 'dataType': 'JSON', 'dataCd': 'ASOS', 'dateCd': 'DAY', 'startDt': 20230801, 'endDt': 20240806, 'stnIds': '108'}
     response = requests.get(Variable.get("weather_api_key"), params=params)
     data = response.json()
 
@@ -146,6 +146,14 @@ def load_to_redshift(schema, table):
     try:
         # FULL REFRESH
         cursor.execute("BEGIN;")
+        cursor.execute(f"""CREATE TABLE IF NOT EXISTS {schema}.{table} (
+            tm DATE,
+            avgTa FLOAT,
+            minTa FLOAT,
+            maxTa FLOAT,
+            sumRn FLOAT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );""")
         cursor.execute(f"""TRUNCATE TABLE {schema}.{table};""")
         cursor.execute(f"""
             COPY {schema}.{table}

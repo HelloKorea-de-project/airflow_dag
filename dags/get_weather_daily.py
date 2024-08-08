@@ -164,14 +164,13 @@ def load_to_redshift(schema, table):
     try:
         # FULL REFRESH
         cursor.execute("BEGIN;")
-        cursor.execute(f"""TRUNCATE TABLE {table};""")
         cursor.execute(f"""
             COPY {schema}.{table}
             FROM 's3://hellokorea-stage-layer/source/weather/2023/7/weather.parquet'
             IAM_ROLE '{iam_role}'
             FORMAT AS PARQUET;
             """)
-        cursor.execute("COMMIT;")   # cur.execute("END;")
+        cursor.execute("COMMIT;")
         logging.info(f'Successfully loaded data from S3 to Redshift table {schema}.{table}')
     except Exception as e:
         print(f'Error: {e}')
@@ -184,11 +183,12 @@ def load_to_redshift(schema, table):
 
 with DAG(
     dag_id = 'Weather_daily',
-    start_date = datetime(2024,7,31),
+    start_date = datetime(2024,8,7),
     catchup=False,
     tags=['API'],
-    schedule = '0 3 * * *', #매일 UTC 3시 , KST 12시 시행 (전날 데이터 11시에 업데이트 됨)
-    on_failure_callback = slack.on_failure_callback
+    schedule = '0 4 * * *', #매일 UTC 4시 , KST 13시 시행 (전날 데이터 11시에 업데이트 됨)
+    on_failure_callback=slack.on_failure_callback
+
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
