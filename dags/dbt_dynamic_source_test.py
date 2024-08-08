@@ -111,7 +111,7 @@ def extract_dependent_dags():
     available_models = []
 
     models, sources = get_dbt_resources_and_lineage(DBT_ROOT_PATH / DBT_PROJECT_NAME)
-    if models and sources:
+    if not (models and sources):
         logger.error("No models found in DBT.")
         return
 
