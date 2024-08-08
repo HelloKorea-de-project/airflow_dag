@@ -146,9 +146,9 @@ models:
           - unique
           - not_null
           - relationships:
-            to: ref('fresh_event')
-            field: mt20id
-            severity: warn
+              to: ref('fresh_event')
+              field: mt20id
+              severity: warn
       - name: mt10id
         tests:
           - not_null
