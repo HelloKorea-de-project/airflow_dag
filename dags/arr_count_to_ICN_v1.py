@@ -3,6 +3,7 @@ from airflow.models import Variable
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from sqlalchemy import create_engine
+from plugins import slack
 
 from datetime import datetime, timedelta
 
@@ -13,14 +14,15 @@ import pyarrow.parquet as pq
 
 default_args = {
         'owner' : "yjshin",
+        'start_date' : datetime(2024,7,28,5,0),
         'retries':1,
-        'retry_delay': timedelta(minutes=3)
+        'retry_delay': timedelta(minutes=3),
+        'on_failure_callback': slack.on_failure_callback
 }
 
 @dag(
     dag_id = "arr_count_to_ICN_v1",
-    start_date = datetime(2024,7,28,16,0),
-    schedule_interval = timedelta(days=10),
+    schedule = timedelta(days=10),
     max_active_runs = 1,
     catchup = False,
     default_args=default_args,
@@ -136,7 +138,7 @@ def dag():
         
         logging.info("redshift updated")
 
-    current_date = '{{ ds }}'
+    current_date = '{{ macros.ds_add(ds, 10) }}'
     s3_key_stage = api_to_stage(current_date)
     update_redshift(current_date, s3_key_stage)
 
