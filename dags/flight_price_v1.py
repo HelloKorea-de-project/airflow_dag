@@ -7,20 +7,36 @@ from apify_client import ApifyClient
 
 from datetime import datetime, timedelta
 
-import requests, logging, json, psycopg2, asyncio, time
+import requests, logging, json, psycopg2, asyncio, aioboto3, time
 import pandas as pd
 from io import BytesIO, StringIO
 
+from plugins import slack
+
+
+def clear_failed_task(context):
+    logging.info("call clear_failed_task")
+    dag = context.get('dag')
+    if dag:
+        dag.clear(
+            start_date=dag.start_date,
+            end_date=dag.end_date,
+            only_failed=True,
+        )
+        logging.info("clear done")
+
+
 default_args = {
         'owner':'yjshin',
-        'start_date' : datetime(2024,7,28,18,0),
+        'start_date' : datetime(2024,7,29,5,30),
         'retries':1,
-        'retry_delay': timedelta(minutes=3)
+        'retry_delay': timedelta(minutes=3),
+        'on_failure_callback': clear_failed_task,
 }
 
 @dag(
     dag_id='flight_price_v1',
-    schedule_interval = timedelta(days=3),
+    schedule = timedelta(days=3),
     max_active_runs = 1,
     default_args=default_args,
     catchup=False,
@@ -42,8 +58,6 @@ def dag():
         Tasks to get the number of flight plans
         by departure airport table (arrcounttoicn)
         and airport information table (serviceairporticn)
-        
-        input : 
         """
 
         cur = get_redshift_connection()
@@ -78,9 +92,8 @@ def dag():
             time.sleep(0.3)
             datasetId = response.json()["data"]["defaultDatasetId"]
             return datasetId
-        except Exception as e:
-            logging.info("api actor error")
-            raise e
+        except:
+            return False
         
     @task
     def api_call(departures, search_date):
@@ -88,11 +101,12 @@ def dag():
         flight_price_api = Variable.get("flight_price_api")
         
         results = []
+        failed = [] # Failed actor
         for airport, country, currency in departures:
             depAirportCode = airport
             depCountryCode = country
             currencyCode = currency
-            for days in range(1, 31):
+            for days in range(4, 34):
                 nowSearchDate = search_date[f'date_{days}']
                 print(depAirportCode, nowSearchDate)
                 run_input = {
@@ -111,8 +125,12 @@ def dag():
                     "target.0": "ICN",
                     "depart.0": nowSearchDate,
                 }
-                results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, api_actor_run(run_input, flight_price_api)])
-            time.sleep(150)
+                datasetId = api_actor_run(run_input, flight_price_api)
+                if datasetId:
+                    results.append([depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId])
+                    
+            time.sleep(180)
+            
         logging.info("api call success")
         return results
         
@@ -122,7 +140,7 @@ def dag():
         load api data to raw layer
         """
         logging.info("start load to raw layer")
-        time.sleep(60) # to wait dataset completed
+        time.sleep(100) # to wait dataset completed
         
         flight_price_api = Variable.get("flight_price_api")
         client = ApifyClient(flight_price_api)
@@ -141,18 +159,41 @@ def dag():
             )
 
         logging.info(f"loaded raw layer")
+        return dataset_list
 
-                
-    async def transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
+    async def upload_to_s3(semaphore, s3_client, s3_key_raw, results):
+        # List to parquet
+        col = ['id', 'depAirportCode', 'depCountryCode', 'currencyCode', 'arrAirportCode', 'carrierName', 'depTime', 'arrTime', 'price', 'url', 'extractedDate', 'isExpired']
+        df = pd.DataFrame(data=results, columns=col)
+            
+        parquet_buffer = BytesIO()
+        df.to_parquet(parquet_buffer, index=False, engine='pyarrow', use_deprecated_int96_timestamps=True)
+        parquet_buffer.seek(0)
+            
+        s3_key_transformed = s3_key_raw[:-4] + 'parquet'
+        s3_bucket_transformed = 'hellokorea-stage-layer'
+        
+        async with semaphore:
+            await s3_client.put_object(
+                Bucket = s3_bucket_transformed,
+                Key = s3_key_transformed,
+                Body = parquet_buffer.getvalue()
+            )
+        print(f"{s3_key_raw} ended")
+           
+    async def transform(semaphore, s3_client, s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date):
         """
         extract data from raw layer
         to store in the stage layer after preprocessing
         """
-        s3_hook = S3Hook(aws_conn_id="s3_conn")
-        
-        file_content = s3_hook.read_key(key=s3_key_raw, bucket_name='hellokorea-raw-layer')
-        df = pd.read_json(StringIO(file_content))
+        response = await s3_client.get_object(
+            Bucket='hellokorea-raw-layer',
+            Key=s3_key_raw
+        )
+        file_content = await response['Body'].read()
+        df = pd.read_json(StringIO(file_content.decode('utf-8')))
 
+        # preprocessing
         if not df.empty:
             df = pd.json_normalize(df.to_dict(orient='records'))
 
@@ -160,7 +201,6 @@ def dag():
             results = []
 
             print(len(df["id"]), len(df["pricing_options"]))
-            # Preprocess (extract departure airport, arrival airport, airline, departure time, price, URL, update date)
             for idx, (id, price) in enumerate(zip(df["id"], df["pricing_options"])):
                 tmp = list(map(str, id.split('-')))
                 depTime = datetime.strptime(f"20{tmp[1][:2]}-{tmp[1][2:4]}-{tmp[1][4:6]} {tmp[1][6:8]}:{tmp[1][8:10]}", "%Y-%m-%d %H:%M")
@@ -173,33 +213,29 @@ def dag():
                 isExpired = False
 
                 results.append([id, depAirportCode, depCountryCode, currencyCode, arrAirportCode, carrierName, depTime, arrTime, cheapest_price, url, extractedDate, isExpired])
-
-            # List to parquet
-            col = ['id', 'depAirportCode', 'depCountryCode', 'currencyCode', 'arrAirportCode', 'carrierName', 'depTime', 'arrTime', 'price', 'url', 'extractedDate', 'isExpired']
-            df = pd.DataFrame(data=results, columns=col)
-                
-            parquet_buffer = BytesIO()
-            df.to_parquet(parquet_buffer, index=False, engine='pyarrow', use_deprecated_int96_timestamps=True)
-            parquet_buffer.seek(0)
-                
-            s3_key_transformed = s3_key_raw[:-4] + 'parquet'
-            s3_bucket_transformed = 'hellokorea-stage-layer'
-            s3_hook.load_bytes(
-                bytes_data = parquet_buffer.getvalue(),
-                key = s3_key_transformed,
-                bucket_name = s3_bucket_transformed,
-                replace=True
-            )
+            print(f"{s3_key_raw} started")
+            await upload_to_s3(semaphore, s3_client, s3_key_raw, results)
         
-    async def extract_from_s3(dataset_list, current_date):
-        tasks = []
+    async def extract_from_s3(semaphore, dataset_list, current_date):
+        s3_hook = S3Hook(aws_conn_id="s3_conn")
+        aws_access_key_id = s3_hook.get_connection(conn_id="s3_conn").login
+        aws_secret_access_key = s3_hook.get_connection(conn_id="s3_conn").password
+        region_name = "ap-northeast-2"
         
-        for depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId in dataset_list:
-            s3_key_raw = f"source/flight/{depAirportCode}_to_ICN_{nowSearchDate}_updated_{current_date}.json"
-            task = asyncio.create_task(transform(s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date))
-            tasks.append(task)
-                
-        await asyncio.gather(*tasks)
+        session = aioboto3.Session()
+        async with session.client(
+            's3',
+            aws_access_key_id=aws_access_key_id,
+            aws_secret_access_key=aws_secret_access_key,
+            region_name=region_name
+        ) as s3_client:
+            tasks = []
+            for depAirportCode, depCountryCode, currencyCode, nowSearchDate, datasetId in dataset_list:
+                s3_key_raw = f"source/flight/{depAirportCode}_to_ICN_{nowSearchDate}_updated_{current_date}.json"
+                task = asyncio.create_task(transform(semaphore, s3_client, s3_key_raw, depAirportCode, depCountryCode, currencyCode, current_date))
+                tasks.append(task)
+                    
+            await asyncio.gather(*tasks)
         logging.info("transformed done")
 
     @task
@@ -208,8 +244,10 @@ def dag():
         Get raw data from the raw layer, preprocess it,
         and load it into the stage layer
         """
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(extract_from_s3(dataset_list, current_date))
+        semaphore = asyncio.Semaphore(20)
+        asyncio.run(extract_from_s3(semaphore, dataset_list, current_date))
+        
+        return dataset_list
             
     def update_redshift_query(cur, s3_path):
         """
@@ -271,7 +309,7 @@ def dag():
             update_query = f"""
                 UPDATE {schema}.{table}
                 SET isExpired = True
-                WHERE extractedDate < '{current_date}';
+                WHERE extractedDate <= '{current_date}';
             """
             cur.execute(update_query)
             cur.execute("COMMIT;")
@@ -290,7 +328,9 @@ def dag():
         if cur:
             cur.close()
             cur.connection.close()
+        
         logging.info("update redshift ended")
+        return current_date
         
         
     @task
@@ -315,13 +355,14 @@ def dag():
                     WHERE isExpired = False')
                 TO '{s3_path}'
                 IAM_ROLE '{iam_role}'
+                HEADER
                 PARALLEL OFF
                 CSV;
             """
             cur.execute(unload_query)
             cur.execute("COMMIT;")
-            
             return s3_key_to_unload
+            
         except Exception as e:
             cur.execute("ROLLBACK;")
             raise e
@@ -344,14 +385,20 @@ def dag():
                 TRUNCATE TABLE {table};
             """
             cur.execute(truncate_query)
-            
+            cur.execute("COMMIT;")
+        except Exception as e:
+            cur.execute("ROLLBACK;")
+            raise e
+        
+        try:
+            cur.execute("BEGIN;")
             cur.execute("CREATE EXTENSION IF NOT EXISTS aws_s3 CASCADE;")
                 
             copy_query = f"""
                 SELECT aws_s3.table_import_from_s3(
                     '{table}', 
                     '"id", "depAirportCode", "depCountryCode", "currencyCode", "arrAirportCode", "carrierName", "depTime", "arrTime", "price", "url"',
-                    '(format csv)',
+                    '(format csv, header true)',
                     '{s3_bucket}',
                     '{s3_key_to_prod}000',
                     'ap-northeast-2'
@@ -370,14 +417,19 @@ def dag():
                 cur.connection.close()
     
                 
-    current_date = '{{ ds }}'
-    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(1, 31)} # dictionary
-    departures = get_high_frequency_airports()
-    dataset_list = api_call(departures, search_date)
-    data_to_raw(dataset_list, current_date)
-    raw_to_stage(dataset_list, current_date)
-    update_redshift(dataset_list, current_date)
-    s3_key_to_prod = unload_redshift_to_s3(current_date)
-    update_rds(s3_key_to_prod)
+    current_date = '{{ macros.ds_add(ds, 3) }}'
+    search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
     
+    departures = get_high_frequency_airports()
+    api_call_task = api_call(departures, search_date)
+    
+    data_to_raw_task = data_to_raw(api_call_task, current_date)
+    raw_to_stage_task = raw_to_stage(data_to_raw_task, current_date)
+
+    update_redshift_task = update_redshift(raw_to_stage_task, current_date)
+    
+    unload_s3_task = unload_redshift_to_s3(current_date)
+    update_rds_task = update_rds(unload_s3_task)
+    
+    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
 dag=dag()

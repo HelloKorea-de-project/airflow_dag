@@ -4,3 +4,5 @@ pyarrow==16.0.0
 pyproj==3.6.1
 Requests==2.32.3
 apify-client==1.7.1
+pytz==2024.1
+aioboto3==13.1.1

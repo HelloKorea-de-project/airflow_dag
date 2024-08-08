@@ -10,6 +10,7 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime
 from airflow.models import Variable
 from pyproj import CRS, Transformer
+from plugins import slack
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pandas as pd
@@ -230,7 +231,8 @@ with DAG(
     start_date = datetime(2024,7,20),
     catchup=False,
     tags=['API'],
-    schedule = '0 4 * * 1' # 월요일 실행
+    schedule = '0 0 * * 1', # 월요일 자정에 실행
+    on_failure_callback = slack.on_failure_callback
 ) as dag:
     api_task = call_api()
     parsing_task = get_and_parsing()
