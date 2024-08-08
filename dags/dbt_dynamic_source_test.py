@@ -111,6 +111,9 @@ def extract_dependent_dags():
     available_models = []
 
     models, sources = get_dbt_resources_and_lineage(DBT_ROOT_PATH / DBT_PROJECT_NAME)
+    if not (models and sources):
+        logger.error("No models found in DBT.")
+        raise ValueError(f"No models found in DBT : {len(models)}, {len(sources)}")
 
     for dag_id, dag in dag_bag.dags.items():
         if 'load-redshift' in dag.tags:
@@ -143,7 +146,7 @@ def extract_dependent_dags():
                 available_models.append((dag_id, model['name'].strip(), last_task_id, execution_delta))
 
     if not available_models:
-        raise ValueError("No models found in DAG tags.")
+        raise ValueError(f"No models found in DAG tags : {len(available_models)}")
 
     return available_models
 
@@ -234,6 +237,9 @@ def create_dynamic_dag(dag_id, external_dag_id, external_task_id, model_name, ex
 
 # Create dynamic DAGs based on the extracted information
 model_info = extract_dependent_dags()
-for external_dag_id, model_name, external_task_id, execution_delta in model_info:
-    dag_id = f"dynamic_test_{model_name}"
-    globals()[dag_id] = create_dynamic_dag(dag_id, external_dag_id, external_task_id, model_name, execution_delta)
+if model_info:
+    for external_dag_id, model_name, external_task_id, execution_delta in model_info:
+        dag_id = f"dynamic_test_{model_name}"
+        globals()[dag_id] = create_dynamic_dag(dag_id, external_dag_id, external_task_id, model_name, execution_delta)
+else:
+    raise ValueError(f"No model_info founded : {len(model_info)}")
