@@ -56,7 +56,7 @@ def call_api():
     bucket_name = 'hellokorea-raw-layer'
     s3_hook.load_string(
                 string_data = json.dumps(data),
-                key = 'source/weather/2023/7/weather.json',
+                key = 'source/weather/2023/8/weather.json',
                 bucket_name = bucket_name,
                 replace = True
             )
@@ -69,7 +69,7 @@ def get_and_parsing():
 
     s3_client = s3_connection()
     bucket_name = 'hellokorea-raw-layer'
-    file_name = 'source/weather/2023/7/weather.json'
+    file_name = 'source/weather/2023/8/weather.json'
 
     obj = s3_client.get_object(Bucket=bucket_name, Key=file_name)
     weathers2 = obj['Body'].read().decode('utf-8')
@@ -123,14 +123,15 @@ def parsing_data_to_stage(records):
     df = pd.DataFrame(records, columns=["tm", "avgTa", "minTa", "maxTa", "sumRn"])  # 리스트를 Pandas DataFrame으로 변환 (열이름 설정)
     df['tm'] = pd.to_datetime(df['tm'], format='%Y-%m-%d').dt.date
     df = df.astype({'avgTa':'float', 'minTa':'float', 'maxTa':'float', 'sumRn':'float'})
+    df['created_at'] = pd.to_datetime(datetime.now())
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
 
     buffer = io.BytesIO()   # 메모리에서 Parquet 파일을 생성하기 위해 BytesIO 객체 사용
-    pq.write_table(table, buffer)   # Arrow 테이블을 BytesIO 객체에 Parquet 파일로 작성 
+    pq.write_table(table, buffer, use_deprecated_int96_timestamps=True)   # Arrow 테이블을 BytesIO 객체에 Parquet 파일로 작성 
     buffer.seek(0)  # BytesIO 버퍼의 포인터를 처음으로 되돌리기
     
     s3_client  = s3_connection()
-    s3_client.upload_fileobj(buffer, 'hellokorea-stage-layer', 'source/weather/2023/7/weather.parquet') # BytesIO 버퍼의 내용을 S3에 업로드
+    s3_client.upload_fileobj(buffer, 'hellokorea-stage-layer', 'source/weather/2023/8/weather.parquet') # BytesIO 버퍼의 내용을 S3에 업로드
 
     logging.info("weather.parque to S3 stage layer")
 
@@ -157,7 +158,7 @@ def load_to_redshift(schema, table):
         cursor.execute(f"""TRUNCATE TABLE {schema}.{table};""")
         cursor.execute(f"""
             COPY {schema}.{table}
-            FROM 's3://hellokorea-stage-layer/source/weather/2023/7/weather.parquet'
+            FROM 's3://hellokorea-stage-layer/source/weather/2023/8/weather.parquet'
             IAM_ROLE '{iam_role}'
             FORMAT AS PARQUET;
             """)
@@ -174,7 +175,7 @@ def load_to_redshift(schema, table):
 
 with DAG(
     dag_id = 'weather',
-    start_date = datetime(2024,7,31),
+    start_date = datetime(2024,8,1),
     catchup=False,
     tags=['API'],
     schedule = '@once', #처음 한번만 실행

@@ -141,10 +141,11 @@ def parsing_data_to_stage(records):
     df = pd.DataFrame(records, columns=["tm", "avgTa", "minTa", "maxTa", "sumRn"])  # 리스트를 Pandas DataFrame으로 변환 (열이름 설정)
     df['tm'] = pd.to_datetime(df['tm'], format='%Y-%m-%d').dt.date
     df = df.astype({'avgTa':'float', 'minTa':'float', 'maxTa':'float', 'sumRn':'float'})
+    df['created_at'] = pd.to_datetime(datetime.now())
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환 
 
     buffer = io.BytesIO()   # 메모리에서 Parquet 파일을 생성하기 위해 BytesIO 객체 사용
-    pq.write_table(table, buffer)   # Arrow 테이블을 BytesIO 객체에 Parquet 파일로 작성 
+    pq.write_table(table, buffer, use_deprecated_int96_timestamps=True)   # Arrow 테이블을 BytesIO 객체에 Parquet 파일로 작성 
     buffer.seek(0)  # BytesIO 버퍼의 포인터를 처음으로 되돌리기
     
     s3_client  = s3_connection()
@@ -160,13 +161,14 @@ def load_to_redshift(schema, table):
     connection = get_Redshift_connection()
     cursor = connection.cursor()
     iam_role = Variable.get("hellokorea_redshift_s3_access_role")
+    s3_path = 's3://hellokorea-stage-layer/' + s3_stagelayer_path()
 
     try:
         # FULL REFRESH
         cursor.execute("BEGIN;")
         cursor.execute(f"""
             COPY {schema}.{table}
-            FROM 's3://hellokorea-stage-layer/source/weather/2023/7/weather.parquet'
+            FROM '{s3_path}'
             IAM_ROLE '{iam_role}'
             FORMAT AS PARQUET;
             """)
