@@ -88,4 +88,5 @@ jobs:
           aws s3 sync dags/ s3://$S3_BUCKET/dags/ --exclude "*" --include "*.py" --include "requirements.txt"
           aws s3 sync plugins/ s3://$S3_BUCKET/plugins/ --exclude "*" --include "*.py"
           aws s3 sync tests/ s3://$S3_BUCKET/tests/ --exclude "*" --include "*.py"
+          aws s3 sync dbt/ s3://$S3_BUCKET/dbt/
           aws s3 cp airflow.cfg s3://$S3_BUCKET/
