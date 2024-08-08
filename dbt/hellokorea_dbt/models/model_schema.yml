@@ -90,10 +90,10 @@ models:
               to: ref('fresh_serv_air_icn')
               field: airportcode
               severity: warn
-      - name: arrairportcode 
+      - name: arrairportcode
         tests:
           - check_iata
-      - name: depcountrycode 
+      - name: depcountrycode
         tests:
           - check_iso_3166_1_alpha_2
           - relationships:
@@ -107,10 +107,10 @@ models:
               to: ref('fresh_ex_rate')
               field: cur_unit
               severity: warn
-      - name: price 
+      - name: price
         tests:
           - check_abs_amount
-      - name: extracteddate 
+      - name: extracteddate
         tests:
           - check_date
   - name: fresh_serv_air_icn
@@ -120,7 +120,7 @@ models:
           - unique
           - not_null
           - check_iata
-      - name: countrycode 
+      - name: countrycode
         tests:
           - check_iso_3166_1_alpha_2
       - name: currencycode
@@ -130,7 +130,7 @@ models:
               to: ref('fresh_ex_rate')
               field: cur_unit
               severity: warn
-      - name: extracteddate 
+      - name: extracteddate
         tests:
           - check_date
   - name: fresh_event
@@ -138,4 +138,49 @@ models:
       - name: festival
         tests:
           - accepted_values:
-              values: ['Y', 'N']
+              values: ["Y", "N"]
+  - name: fresh_event_detail
+    columns:
+      - name: mt20id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+            to: ref('fresh_event')
+            field: mt20id
+            severity: warn
+      - name: mt10id
+        tests:
+          - not_null
+          - relationships:
+              to: source('raw_data', 'perf_facil_sidogu')
+              field: mt10id
+              severity: warn
+      - name: openrun
+        tests:
+          - accepted_values:
+              values: ["Y", "N"]
+      - name: prfstate
+        tests:
+          - accepted_values:
+              values: ["공연중", "공연예정"]
+  - name: fresh_perf_facil_detail
+    columns:
+      - name: mt10id
+        tests:
+          - unique
+          - not_null
+          - relationships:
+              to: source('raw_data', 'perf_facil_sidogu')
+              field: mt10id
+              severity: warn
+      - name: mt13cnt
+        tests:
+          - check_abs_amount
+      - name: seatscale
+        tests:
+          - check_abs_amount
+    tests:
+      - check_gcs_kor:
+          lat_col_name: la
+          lon_col_name: lo
