@@ -118,7 +118,6 @@ def extract_dependent_dags():
     for dag_id, dag in dag_bag.dags.items():
         if 'load-redshift' in dag.tags:
             # Process the DAG if it has the 'load-redshift' tag
-            logger.debug(f"Processing DAG: {dag_id}")
             for tag in dag.tags:
                 if tag.startswith('table:'):
                     # Extract the table name from the tag and convert it to lowercase
@@ -177,7 +176,6 @@ def calculate_execution_delta(schedule_interval):
         if execution_delta.total_seconds() < 0:
             execution_delta += timedelta(days=1)
 
-        logger.debug(f"Calculated execution_delta: {execution_delta}")
         return execution_delta
     except Exception as e:
         logger.error(f"Error calculating execution_delta for schedule_interval '{schedule_interval}': {str(e)}")
