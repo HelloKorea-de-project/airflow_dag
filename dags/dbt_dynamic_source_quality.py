@@ -107,7 +107,7 @@ def extract_dependent_dags():
     Extract model names and the last task ID from DAG descriptions under the 'load_target_models' key.
     Returns a list of tuples (dag_id, model_name, last_task_id, execution_delta).
     """
-    logger.info("Extracting dependent DAGs...")
+    # logger.info("Extracting dependent DAGs...")
 
     dag_bag = DagBag(include_examples=False)
     
@@ -116,7 +116,7 @@ def extract_dependent_dags():
 
     models, sources = get_dbt_resources_and_lineage(DBT_ROOT_PATH / DBT_PROJECT_NAME)
     if not (models and sources):
-        logger.error("No models found in DBT.")
+        # logger.error("No models found in DBT.")
         raise ValueError(f"No models found in DBT : {len(models)}, {len(sources)}")
 
     for dag_id, dag in dag_bag.dags.items():
@@ -128,10 +128,11 @@ def extract_dependent_dags():
 
                     model_info, error = get_model_by_source_identifier(table_name, models, sources)
                     if error:
-                        logger.debug(error)
+                        # logger.debug(error)
+                        raise ValueError(f"No Model Information for Source Identifier")
                     else:
                         dag_models.append(model_info)
-                        logger.debug(f"Model Information for Source Identifier '{table_name}': {model_info}")
+                        # logger.debug(f"Model Information for Source Identifier '{table_name}': {model_info}")
 
             # Get the last task ID
             if dag.tasks:

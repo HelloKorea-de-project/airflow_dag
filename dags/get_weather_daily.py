@@ -17,6 +17,7 @@ import logging
 import requests
 import json
 import io
+from plugins.dbt_utils import create_dbt_task_group
 
 
 # Airflow Connection에 등록된 Redshift 연결 정보를 가져옴
@@ -198,4 +199,10 @@ with DAG(
     stage_task = parsing_data_to_stage(parsing_task)
     load_task = load_to_redshift("raw_data", "weather")
 
-api_task >> parsing_task >> stage_task >> load_task
+    dbt_source_test_task_group = create_dbt_task_group(
+        group_id="dbt_source_test_task_group",
+        select_models=['fresh_weather'],
+        dag=dag
+    )
+
+api_task >> parsing_task >> stage_task >> load_task >> dbt_source_test_task_group
