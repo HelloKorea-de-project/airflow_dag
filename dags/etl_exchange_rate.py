@@ -13,6 +13,24 @@ import pyarrow as pa
 from io import StringIO, BytesIO
 import logging
 
+from cosmos import DbtDag, ProfileConfig, ProjectConfig, RenderConfig, DbtTaskGroup
+from cosmos.constants import LoadMode
+from pathlib import Path
+import os
+
+# Constants for DBT configuration
+DBT_PROJECT_NAME = "hellokorea_dbt"
+DEFAULT_DBT_ROOT_PATH = Path(__file__).parent.parent / "dbt"
+DBT_ROOT_PATH = Path(os.getenv("DBT_ROOT_PATH", DEFAULT_DBT_ROOT_PATH))
+
+DAG_EXECUTE_HOUR = 11
+
+profile_config = ProfileConfig(
+    profile_name=DBT_PROJECT_NAME,
+    target_name="prod",
+    profiles_yml_filepath=DBT_ROOT_PATH / f"{DBT_PROJECT_NAME}/profiles.yml"
+)
+
 
 # Configuration
 TABLE_NAME = 'ExchangeRate'
@@ -201,6 +219,12 @@ def update_redshift(logical_date, **kwargs):
     """
     cursor.execute(create_table_query)
 
+    delete_query = f"""
+        DELETE FROM raw_data.{TABLE_NAME}
+        WHERE created_at = '{logical_date}';
+        """
+    cursor.execute(delete_query)
+
     s3_path = f's3://{Variable.get("S3_STAGE_BUCKET")}/{stage_path}'
     iam_role = Variable.get("hellokorea_redshift_s3_access_role")
     query = f"""
@@ -291,8 +315,26 @@ update_redshift_task = PythonOperator(
     dag=dag,
 )
 
+dbt_source_test_task_group = DbtTaskGroup(
+    group_id=f"dbt_test_task_fresh_ex_rate",
+    project_config=ProjectConfig(
+        DBT_ROOT_PATH / DBT_PROJECT_NAME,
+    ),
+    profile_config=profile_config,
+    operator_args={
+        "install_deps": True,
+        # "dbt_cmd_flags": ["--models", "stg_customers"],
+    },
+    render_config=RenderConfig(
+        select=['fresh_ex_rate'],
+        load_method=LoadMode.DBT_LS,
+    ),
+    default_args={"retries": 1},
+    on_warning_callback=slack.warning_data_quality_callback,
+)
+
 
 fetch_task >> [clean_task, convert_task]
 clean_task >> update_rds_task
-convert_task >> update_redshift_task
+convert_task >> update_redshift_task >> dbt_source_test_task_group
 
