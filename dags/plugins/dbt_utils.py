@@ -2,7 +2,7 @@ from cosmos import DbtDag, ProfileConfig, ProjectConfig, RenderConfig, DbtTaskGr
 from cosmos.constants import LoadMode
 from pathlib import Path
 import os
-import slack
+from plugins import slack
 
 # Constants for DBT configuration
 DBT_PROJECT_NAME = "hellokorea_dbt"
