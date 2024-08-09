@@ -331,6 +331,7 @@ dbt_source_test_task_group = DbtTaskGroup(
     ),
     default_args={"retries": 1},
     on_warning_callback=slack.warning_data_quality_callback,
+    dag=dag,
 )
 
 
