@@ -12,7 +12,21 @@ import pandas as pd
 from io import BytesIO
 import pyarrow.parquet as pq
 
-from plugins.dbt_utils import create_dbt_task_group
+from cosmos import DbtDag, ProfileConfig, ProjectConfig, RenderConfig, DbtTaskGroup
+from cosmos.constants import LoadMode
+from pathlib import Path
+import os
+
+# Constants for DBT configuration
+DBT_PROJECT_NAME = "hellokorea_dbt"
+DEFAULT_DBT_ROOT_PATH = Path(__file__).parent.parent / "dbt"
+DBT_ROOT_PATH = Path(os.getenv("DBT_ROOT_PATH", DEFAULT_DBT_ROOT_PATH))
+
+profile_config = ProfileConfig(
+    profile_name=DBT_PROJECT_NAME,
+    target_name="prod",
+    profiles_yml_filepath=DBT_ROOT_PATH / f"{DBT_PROJECT_NAME}/profiles.yml"
+)
 
 
 default_args = {
@@ -141,10 +155,22 @@ def dag():
         
         logging.info("redshift updated")
 
-    dbt_source_test_task_group = create_dbt_task_group(
-        group_id="dbt_source_test_task_group",
-        select_models=['fresh_arr_cnt_icn'],
-        dag=dag
+    dbt_source_test_task_group = DbtTaskGroup(
+        group_id=f"dbt_test_task_fresh_arr_cnt_icn",
+        project_config=ProjectConfig(
+            DBT_ROOT_PATH / DBT_PROJECT_NAME,
+        ),
+        profile_config=profile_config,
+        operator_args={
+            "install_deps": True,
+            # "dbt_cmd_flags": ["--models", "stg_customers"],
+        },
+        render_config=RenderConfig(
+            select=['fresh_arr_cnt_icn'],
+            load_method=LoadMode.DBT_LS,
+        ),
+        default_args={"retries": 1},
+        on_warning_callback=slack.warning_data_quality_callback,
     )
 
     current_date = '{{ macros.ds_add(ds, 10) }}'
