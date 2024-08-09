@@ -38,12 +38,16 @@ def get_dbt_resources_and_lineage(project_dir):
     # Path to the manifest.json file which contains dbt resource information
     manifest_path = os.path.join(project_dir, "target", "manifest.json")
 
-    if not os.path.exists(manifest_path):
-        logger.debug(f"Manifest file not found at {manifest_path}")
-        raise ValueError(f"Manifest file not found at {manifest_path}")
-
-    with open(manifest_path, 'r') as f:
-        manifest = json.load(f)
+    try:
+        with open(manifest_path, 'r') as f:
+            try:
+                manifest = json.load(f)
+            except json.JSONDecodeError as json_err:
+                raise ValueError(f"Error parsing JSON file at {manifest_path}: {json_err}")
+    except FileNotFoundError as fnf_err:
+        raise ValueError(f"File not found: {fnf_err.filename}")
+    except IOError as io_err:
+        raise ValueError(f"IO error occurred while reading {manifest_path}: {io_err}")
 
     # Extract models
     models = {
