@@ -48,7 +48,7 @@ sources:
         identifier: lodging
         meta:
           creator: "jdw"
-      - name: wheather
-        identifier: wheather
+      - name: weather
+        identifier: weather
         meta:
           creator: "jdw"
