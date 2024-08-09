@@ -12,6 +12,9 @@ import pandas as pd
 from io import BytesIO
 import pyarrow.parquet as pq
 
+from plugins.dbt_utils import create_dbt_task_group
+
+
 default_args = {
         'owner' : "yjshin",
         'start_date' : datetime(2024,7,28,5,0),
@@ -138,8 +141,16 @@ def dag():
         
         logging.info("redshift updated")
 
+    dbt_source_test_task_group = create_dbt_task_group(
+        group_id="dbt_source_test_task_group",
+        select_models=['fresh_arr_cnt_icn'],
+        dag=dag
+    )
+
     current_date = '{{ macros.ds_add(ds, 10) }}'
     s3_key_stage = api_to_stage(current_date)
-    update_redshift(current_date, s3_key_stage)
+    update_redshift_task = update_redshift(current_date, s3_key_stage)
+
+    s3_key_stage >> update_redshift_task >> dbt_source_test_task_group
 
 dag=dag()

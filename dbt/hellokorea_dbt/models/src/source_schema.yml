@@ -48,3 +48,7 @@ sources:
         identifier: lodging
         meta:
           creator: "jdw"
+      - name: wheather
+        identifier: wheather
+        meta:
+          creator: "jdw"

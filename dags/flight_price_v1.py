@@ -12,6 +12,8 @@ import pandas as pd
 from io import BytesIO, StringIO
 
 from plugins import slack
+from plugins.dbt_utils import create_dbt_task_group
+
 
 
 def clear_failed_task(context):
@@ -416,6 +418,11 @@ def dag():
                 cur.close()
                 cur.connection.close()
     
+    dbt_source_test_task_group = create_dbt_task_group(
+        group_id="dbt_source_test_task_group",
+        select_models=['fresh_ex_rate'],
+        dag=dag
+    )
                 
     current_date = '{{ macros.ds_add(ds, 3) }}'
     search_date = {f'date_{days}': f'{{{{ macros.ds_add(ds, {days}) }}}}' for days in range(4, 34)}
@@ -431,5 +438,5 @@ def dag():
     unload_s3_task = unload_redshift_to_s3(current_date)
     update_rds_task = update_rds(unload_s3_task)
     
-    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task
+    departures >> api_call_task >> data_to_raw_task >> raw_to_stage_task >> update_redshift_task >> unload_s3_task >> update_rds_task >> dbt_source_test_task_group
 dag=dag()

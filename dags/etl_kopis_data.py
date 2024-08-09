@@ -21,6 +21,8 @@ import xml.etree.ElementTree as ET
 import pandas as pd
 import pyarrow.parquet as pq
 
+from plugins.dbt_utils import create_dbt_task_group
+
 
 API_SOURCE = 'kopis'
 API_PERFORMANCE = 'performance'
@@ -850,4 +852,11 @@ with TaskGroup("produce_to_rds", tooltip="Tasks for load event data to rds event
 
     join_facility_tables >> ensure_facility_integrity >> load_facility_to_rds >> join_event_tables >> ensure_event_integrity >> load_event_to_rds
 
-raw_to_stage >> copy_to_redshift >> produce_to_rds
+
+dbt_source_test_task_group = create_dbt_task_group(
+    group_id="dbt_source_test_task_group",
+    select_models=['fresh_event', 'fresh_event_detail', 'fresh_perf_facil_detail'],
+    dag=dag
+)
+
+raw_to_stage >> copy_to_redshift >> produce_to_rds >> dbt_source_test_task_group

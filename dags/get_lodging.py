@@ -18,6 +18,7 @@ import logging
 import requests
 import json
 import io
+from plugins.dbt_utils import create_dbt_task_group
 
 
 # Airflow Connection에 등록된 Redshift 연결 정보를 가져옴
@@ -230,7 +231,7 @@ with DAG(
     dag_id = 'lodging',
     start_date = datetime(2024,7,20),
     catchup=False,
-    tags=['API'],
+    tags=['API', 'load-redshift', 'table:lodging'],
     schedule = '0 0 * * 1', # 월요일 자정에 실행
     on_failure_callback = slack.on_failure_callback
 ) as dag:
@@ -240,4 +241,10 @@ with DAG(
     RDS_task = parsing_data_to_RDS(parsing_task, "tour_lodging")
     load_task = load_to_redshift("raw_data", "lodging")
 
-api_task >> parsing_task >> RDS_task, stage_task >> load_task
+    dbt_source_test_task_group = create_dbt_task_group(
+        group_id="dbt_source_test_task_group",
+        select_models=["fresh_lodging"],
+        dag=dag
+    )
+
+api_task >> parsing_task >> RDS_task, stage_task >> load_task >> dbt_source_test_task_group

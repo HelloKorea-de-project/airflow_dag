@@ -16,6 +16,8 @@ import pandas as pd
 import pyarrow.parquet as pq
 from datetime import datetime, timedelta
 
+from plugins.dbt_utils import create_dbt_task_group
+
 
 API_SOURCE = 'tour'
 API_CALLED = 'attractions'
@@ -872,4 +874,11 @@ with TaskGroup("produce_to_rds", tooltip="Tasks for produce integrity ensured da
 
     [load_area_to_rds, load_service_code_to_rds] >> load_attraction_to_rds
 
-load_tour_attractions_data_to_raw >> raw_to_stage >> copy_to_redshift >> join_stage_tables >> ensure_integrity >> produce_to_rds
+
+dbt_source_test_task_group = create_dbt_task_group(
+    group_id="dbt_source_test_task_group",
+    select_models=['fresh_st_info'],
+    dag=dag
+)
+
+load_tour_attractions_data_to_raw >> raw_to_stage >> copy_to_redshift >> join_stage_tables >> ensure_integrity >> produce_to_rds >> dbt_source_test_task_group

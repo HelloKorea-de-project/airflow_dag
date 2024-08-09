@@ -195,3 +195,28 @@ models:
       - check_gcs_kor:
           lat_col_name: la
           lon_col_name: lo
+  - name: fresh_weather
+    columns:
+      - name: tm
+        tests:
+          - unique
+          - not_null
+          - check_date
+      - name: avgta
+        tests:
+          - check_range_value:
+              min_num: -50
+              max_num: 50
+      - name: minta
+        tests:
+          - check_range_value:
+              min_num: -50
+              max_num: 50
+      - name: maxta
+        tests:
+          - check_range_value:
+              min_num: -50
+              max_num: 50
+      - name: sumrn
+        tests:
+          - check_abs_amount
