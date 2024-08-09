@@ -6,7 +6,7 @@ from plugins import slack
 
 # Constants for DBT configuration
 DBT_PROJECT_NAME = "hellokorea_dbt"
-DEFAULT_DBT_ROOT_PATH = Path(__file__).parent.parent / "dbt"
+DEFAULT_DBT_ROOT_PATH = Path(__file__).parent.parent.parent / "dbt"
 DBT_ROOT_PATH = Path(os.getenv("DBT_ROOT_PATH", DEFAULT_DBT_ROOT_PATH))
 
 profile_config = ProfileConfig(
