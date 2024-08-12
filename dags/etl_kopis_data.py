@@ -583,9 +583,14 @@ def convert_to_dict(data):
     if prices[0].startswith('전석무료'):
         return "{'전석': '0원'}"
     price_dict = {}
-    for info in prices:
-        seat_info = info.split(' ')
-        price_dict[seat_info[0]] = seat_info[1]
+    try:
+        for info in prices:
+            seat_info = info.split(' ')
+            price_dict[seat_info[0]] = seat_info[1]
+    except IndexError as e:
+        print(f"Parsing seat price data failed with error msg: {e}")
+        return '잘못된 가격 정보'
+
     return f'{price_dict}'
 
 
