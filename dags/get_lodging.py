@@ -50,8 +50,7 @@ def convert_tm_to_wgs84(tm_x, tm_y):
     crs_wgs84 = CRS("EPSG:4326")
     transformer = Transformer.from_crs(crs_tm, crs_wgs84, always_xy=True)
     longitude, latitude = transformer.transform(tm_x, tm_y)
-    return latitude, longitude
-
+    return longitude, latitude
 
 #서울 지역코드
 areas_dic = {
@@ -129,7 +128,7 @@ def get_and_parsing():
         mgtno = lodging["MGTNO"]      # 관리번호
         rdnwhladdr = lodging["RDNWHLADDR"]       # 도로명주소
         match = rdnwhladdr.split()
-        addCode = int(areas_dic.get(match[1]))   # 시군구 코드        
+        sigungucode = int(areas_dic.get(match[1]))   # 시군구 코드        
         bplcnm1 = lodging["BPLCNM"]     # 사업장명
         bplcnm = bplcnm1.replace("'", "")
         lo1 = lodging["X"] or '1297744.1643021935'
@@ -137,7 +136,7 @@ def get_and_parsing():
         la1 = lodging["Y"] or '485229.0867525645'
         la2 = la1.replace(" ", "")  # y좌표정보 (위도)
         lo, la = convert_tm_to_wgs84(lo2, la2)  #중부원점TM (EPSG:2097) 좌표를 GRS80 (WGS84) 좌표계로 변환
-        records.append([mgtno, rdnwhladdr, addCode, bplcnm, uptaenm, lo, la])
+        records.append([mgtno, rdnwhladdr, sigungucode, bplcnm, uptaenm, lo, la])
     logging.info("parsing done")
     json_records = json.dumps(records, ensure_ascii=False)
     return json_records
@@ -156,7 +155,7 @@ def parsing_data_to_RDS(json_records, table):
         cursor.execute("BEGIN;")
         cursor.execute(f"""TRUNCATE TABLE {table};""")
         for r in records:
-            sql = f"""INSERT INTO {table} ("mgtno" , "rdnwhladdr", "addCode", "bplcnm", "uptaenm", "lo", "la")
+            sql = f"""INSERT INTO {table} ("mgtno" , "rdnwhladdr", "sigungucode", "bplcnm", "uptaenm", "lo", "la")
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
                 """
             cursor.execute(sql, (r[0], r[1], r[2], r[3], r[4], r[5], r[6]))
@@ -175,7 +174,7 @@ def parsing_data_to_RDS(json_records, table):
 @task
 def parsing_data_to_stage(json_records):
     records = json.loads(json_records)
-    df = pd.DataFrame(records, columns=['mgtno', 'rdnwhladdr', 'addCode', 'bplcnm', 'uptaenm', 'lo', 'la'])
+    df = pd.DataFrame(records, columns=['mgtno', 'rdnwhladdr', 'sigungucode', 'bplcnm', 'uptaenm', 'lo', 'la'])
     df['created_at'] = pd.to_datetime(datetime.now())
     table = pa.Table.from_pandas(df)    # DataFrame을 Apache Arrow 테이블로 변환
 
@@ -202,7 +201,7 @@ def load_to_redshift(schema, table):
         cursor.execute(f"""CREATE TABLE IF NOT EXISTS {schema}.{table} (
             mgtno VARCHAR(30),
             rdnwhladdr  VARCHAR(150),
-            addCode BIGINT,
+            sigungucode BIGINT,
             bplcnm  VARCHAR(100),
             uptaenm VARCHAR(30),
             lo FLOAT,
