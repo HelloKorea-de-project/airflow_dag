@@ -208,7 +208,8 @@ def update_redshift(logical_date, **kwargs):
         kftc_bkpr BIGINT,
         kftc_deal_bas_r DOUBLE PRECISION,
         cur_nm VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        conversion_unit INTEGER
     );
     """
     cursor.execute(create_table_query)
