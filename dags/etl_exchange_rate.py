@@ -95,7 +95,7 @@ def convert_csv_to_parquet(logical_date, **kwargs):
     df['kftc_deal_bas_r'] = df['kftc_deal_bas_r'].replace(',', '', regex=True).astype(float)
     df['created_at'] = pd.to_datetime(datetime.now())
 
-    df['conversion_unit'] = df['cur_unit'].str.extract(r'\((\d+)\)').fillna(1).astype(int)
+    df['conversion_unit'] = df['cur_unit'].str.extract(r'\((\d+)\)').fillna(1).astype('int32')
     df['cur_unit'] = df['cur_unit'].str[:3]
 
     logging.info(f'preprocessed df : {df}')
@@ -208,7 +208,8 @@ def update_redshift(logical_date, **kwargs):
         kftc_bkpr BIGINT,
         kftc_deal_bas_r DOUBLE PRECISION,
         cur_nm VARCHAR(50),
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        conversion_unit INTEGER
     );
     """
     cursor.execute(create_table_query)
