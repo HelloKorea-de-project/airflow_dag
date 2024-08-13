@@ -98,10 +98,11 @@ def convert_csv_to_parquet(logical_date, **kwargs):
     df['conversion_unit'] = df['cur_unit'].str.extract(r'\((\d+)\)').fillna(1).astype(int)
     df['cur_unit'] = df['cur_unit'].str[:3]
 
+    logging.info(f'preprocessed df : {df}')
+
     table = pa.Table.from_pandas(df)
     buffer = BytesIO()
     pq.write_table(table, buffer, use_deprecated_int96_timestamps=True)
-    buffer.seek(0)
     s3_hook.load_bytes(buffer.getvalue(), stage_path, bucket_name=Variable.get("S3_STAGE_BUCKET"), replace=True)
 
 
