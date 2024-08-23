@@ -33,7 +33,10 @@ models:
     materialized: view
   dim:
     materialized: table
+    schema: dimension_data
   fact:
     materialized: table
+    schema: fact_data
   analytics:
     materialized: table
+    schema: analytics_data
