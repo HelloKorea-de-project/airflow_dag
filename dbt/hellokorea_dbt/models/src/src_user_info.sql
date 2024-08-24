@@ -1,6 +1,3 @@
-WITH src_user_info AS(
-    SELECT * FROM raw_data.user_info
-)
 SELECT
     user_id,
     country,
@@ -11,4 +8,4 @@ SELECT
     email,
     registration_date
 FROM
-    src_user_info
+    {{ source('raw_data', 'user_info') }}
