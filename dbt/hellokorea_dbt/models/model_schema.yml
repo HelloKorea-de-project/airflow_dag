@@ -221,68 +221,68 @@ models:
         tests:
           - check_abs_amount
   - name: dim_user_info
-		discription: "사용자 정보"
-	- name: fact_airline_click_log
-		discription: "사용자별 항공권 클릭 기록"
-	- name: fact_airline_purchase_log
-		discription: "사용자별 항공권 구매 기록"
-	- name: fact_airline_search_log
-		discription: "사용자별 항공권 검색 기록"
-	- name: fact_session_channel_timestamp
-		discription: "채널별 세션 접속 기록"
+    discription: "사용자 정보"
+  - name: fact_airline_click_log
+    discription: "사용자별 항공권 클릭 기록"
+  - name: fact_airline_purchase_log
+    discription: "사용자별 항공권 구매 기록"
+  - name: fact_airline_search_log
+    discription: "사용자별 항공권 검색 기록"
+  - name: fact_session_channel_timestamp
+    discription: "채널별 세션 접속 기록"
   - name: src_airline_click_log
-		discription: "사용자별 항공권 클릭 기록"
-	- name: src_airline_purchase_log
-		discription: "사용자별 항공권 구매 기록"
-	- name: src_airline_search_log
-		discription: "사용자별 항공권 검색 기록"
-	- name: src_session_channel_timestamp
-		discription: "채널별 세션 접속 기록"
-	- name: src_user_info
-		discription: "사용자 정보"
-	- name: fact_user_session_info
-		discription: "사용자별 세션 정보"
+    discription: "사용자별 항공권 클릭 기록"
+  - name: src_airline_purchase_log
+    discription: "사용자별 항공권 구매 기록"
+  - name: src_airline_search_log
+    discription: "사용자별 항공권 검색 기록"
+  - name: src_session_channel_timestamp
+    discription: "채널별 세션 접속 기록"
+  - name: src_user_info
+    discription: "사용자 정보"
+  - name: fact_user_session_info
+    discription: "사용자별 세션 정보"
   - name: anal_user_search_count
-	  discription: "사용자별 항공권 검색수"
-	  meta:
-			creator: "syj"
-	- name: anal_user_purchase_count
-	  discription: "사용자별 항공권 구매수"
-	  meta:
-			creator: "syj"
-	- name: anal_user_click_count
-	  discription: "사용자별 항공권 클릭 수"
-	  meta:
-			creator: "syj"
-	- name: anal_channel_search_count
-	  discription: "유입채널별 항공권 검색수"
-	  meta:
-			creator: "syj"
-	- name: anal_channel_purchase_count
-	  discription: "유입채널별 항공권 구매수"
-	  meta:
-			creator: "syj"
-	- name: anal_channel_click_count
-	  discription: "유입채널별 항공권 클릭수"
-	  meta:
-			creator: "syj"
-	- name: anal_time_to_purchase
-	  discription: "검색 후 구매까지 걸린 시간"
-	  meta:
-			creator: "jdw"
-	- name: anal_popular_airport_30
-	  discription: "30일 이내 가장 클릭이 많이 된 공항"
-	  meta:
-			creator: "jdw"
-	- name: anal_country_count
-	  discription: "국가별 항공권 검색 수, 클릭 수, 구매 수"
-	  meta:
-			creator: "jdw"
-	- name: anal_channel_count
-	  discription: "채널별 항공권 검색수, 클릭 수, 구매 수"
-	  meta:
-			creator: "jdw"
-	- name: anal_age_count
-	  discription: "연령대별 항공권 검색 수, 클릭 수, 구매 수"
-	  meta:
-			creator: "jdw"
+    discription: "사용자별 항공권 검색수"
+    meta:
+      creator: "syj"
+  - name: anal_user_purchase_count
+    discription: "사용자별 항공권 구매수"
+    meta:
+      creator: "syj"
+  - name: anal_user_click_count
+    discription: "사용자별 항공권 클릭 수"
+    meta:
+      creator: "syj"
+  - name: anal_channel_search_count
+    discription: "유입채널별 항공권 검색수"
+    meta:
+      creator: "syj"
+  - name: anal_channel_purchase_count
+    discription: "유입채널별 항공권 구매수"
+    meta:
+      creator: "syj"
+  - name: anal_channel_click_count
+    discription: "유입채널별 항공권 클릭수"
+    meta:
+      creator: "syj"
+  - name: anal_time_to_purchase
+    discription: "검색 후 구매까지 걸린 시간"
+    meta:
+      creator: "jdw"
+  - name: anal_popular_airport_30
+    discription: "30일 이내 가장 클릭이 많이 된 공항"
+    meta:
+      creator: "jdw"
+  - name: anal_country_count
+    discription: "국가별 항공권 검색 수, 클릭 수, 구매 수"
+    meta:
+      creator: "jdw"
+  - name: anal_channel_count
+    discription: "채널별 항공권 검색수, 클릭 수, 구매 수"
+    meta:
+      creator: "jdw"
+  - name: anal_age_count
+    discription: "연령대별 항공권 검색 수, 클릭 수, 구매 수"
+    meta:
+      creator: "jdw"
