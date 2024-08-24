@@ -220,7 +220,6 @@ models:
       - name: sumrn
         tests:
           - check_abs_amount
-  
   - name: dim_user_info
 		discription: "사용자 정보"
 	- name: fact_airline_click_log
@@ -231,8 +230,7 @@ models:
 		discription: "사용자별 항공권 검색 기록"
 	- name: fact_session_channel_timestamp
 		discription: "채널별 세션 접속 기록"
-		
-	- name: src_airline_click_log
+  - name: src_airline_click_log
 		discription: "사용자별 항공권 클릭 기록"
 	- name: src_airline_purchase_log
 		discription: "사용자별 항공권 구매 기록"
@@ -244,7 +242,6 @@ models:
 		discription: "사용자 정보"
 	- name: fact_user_session_info
 		discription: "사용자별 세션 정보"
-		
   - name: anal_user_search_count
 	  discription: "사용자별 항공권 검색수"
 	  meta:
