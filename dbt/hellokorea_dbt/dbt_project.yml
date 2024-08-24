@@ -34,9 +34,13 @@ models:
   dim:
     materialized: table
     schema: dimension_data
+    docs:
+      node_color: "grey"
   fact:
     materialized: table
     schema: fact_data
   analytics:
     materialized: table
     schema: analytics_data
+    docs:
+      node_color: "#FFC000"

@@ -52,3 +52,8 @@ sources:
         identifier: weather
         meta:
           creator: "jdw"
+      - name: airline_click_log
+      - name: airline_purchase_log
+      - name: airline_search_log
+      - name: session_channel_timestamp
+      - name: user_info
