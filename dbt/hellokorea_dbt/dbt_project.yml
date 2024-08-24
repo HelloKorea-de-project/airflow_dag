@@ -31,16 +31,24 @@ models:
   hellokorea_dbt: view
   src:
     materialized: view
+    tags:
+      - "source"
   dim:
     materialized: table
     schema: dimension_data
     docs:
-      node_color: "grey"
+      node_color: "purple"
+    tags:
+      - "dimension"
   fact:
     materialized: table
     schema: fact_data
+    tags:
+      - "fact"
   analytics:
     materialized: table
     schema: analytics_data
     docs:
-      node_color: "#FFC000"
+      node_color: "#ffc000"
+    tags:
+      - "analytics"
