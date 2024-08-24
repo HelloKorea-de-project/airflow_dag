@@ -29,5 +29,14 @@ clean-targets: # directories to be removed by `dbt clean`
 # files using the `{{ config(...) }}` macro.
 models:
   hellokorea_dbt: view
+  src:
+    materialized: view
   dim:
     materialized: table
+    schema: dimension_data
+  fact:
+    materialized: table
+    schema: fact_data
+  analytics:
+    materialized: table
+    schema: analytics_data
