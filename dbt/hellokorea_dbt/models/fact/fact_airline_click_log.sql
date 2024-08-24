@@ -3,6 +3,7 @@ WITH src_airline_click_log AS(
 )
 SELECT
     user_id,
+    session_id,
     clicked_ts,
     flight_id,
     depart_time,
