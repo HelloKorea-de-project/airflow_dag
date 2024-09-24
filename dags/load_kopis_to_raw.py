@@ -409,7 +409,9 @@ def parse_xml_facility_details(xml_data):
 def convert_to_csv_string(df):
     csv_buffer = io.StringIO()
     df.to_csv(csv_buffer, index=False)
-    return csv_buffer.getvalue()
+    csv_string = csv_buffer.getvalue()
+    csv_buffer.close()
+    return csv_string
 
 
 def get_s3_path(execution_date, api_source, api_called, file_prefix, file_format):
