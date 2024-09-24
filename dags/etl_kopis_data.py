@@ -656,14 +656,19 @@ def convert_to_kst(execution_date):
 
 def convert_to_parquet_bytes(df):
     pq_buffer = io.BytesIO()
-    df.to_parquet(pq_buffer, index=False)
-    return pq_buffer.getvalue()
+    df.to_parquet(pq_buffer, engine='pyarrow', use_deprecated_int96_timestamps=True, index=False)
+    logging.info(pq.read_schema(pq_buffer))
+    pq_bytes = pq_buffer.getvalue()
+    pq_buffer.close()
+    return pq_bytes
 
 
 def convert_to_csv_string(df):
     csv_buffer = io.StringIO()
     df.to_csv(csv_buffer, index=False)
-    return csv_buffer.getvalue()
+    csv_string = csv_buffer.getvalue()
+    csv_buffer.close()
+    return csv_string
 
 
 def read_parquet_from_s3_obj(s3_obj):
